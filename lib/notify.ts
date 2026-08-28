@@ -32,11 +32,18 @@ export async function sendUpdateNotification(url: string, diffExcerpt: string): 
 export async function sendPlainMessage(text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+  if (!token || !chatId) {
+    throw new Error("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set");
+  }
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text }),
   });
+
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`Telegram send failed: ${resp.status} ${body}`);
+  }
 }

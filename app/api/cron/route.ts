@@ -24,9 +24,13 @@ export async function GET(req: NextRequest) {
 
     if (summary.failed.length > 0) {
       const failedList = summary.failed.map((f) => `- ${f.url}: ${f.error}`).join("\n");
-      await sendPlainMessage(
-        `⚠️ Daily scan: ${summary.failed.length} page(s) failed to fetch:\n${failedList.slice(0, 2000)}`
-      );
+      try {
+        await sendPlainMessage(
+          `⚠️ Daily scan: ${summary.failed.length} page(s) failed to fetch:\n${failedList.slice(0, 2000)}`
+        );
+      } catch (notifyErr) {
+        console.error("Failed to send failure-report Telegram message:", notifyErr);
+      }
     }
 
     return NextResponse.json(summary);

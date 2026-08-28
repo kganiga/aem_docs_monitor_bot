@@ -48,7 +48,10 @@ export interface ScrapeResult {
 export async function scrapePage(url: string): Promise<ScrapeResult> {
   const resp = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
   if (!resp.ok) {
-    throw new Error(`Fetch failed: ${resp.status} ${resp.statusText} for ${url}`);
+    const bodySnippet = (await resp.text().catch(() => "")).slice(0, 300).replace(/\s+/g, " ").trim();
+    throw new Error(
+      `Fetch failed: ${resp.status} ${resp.statusText} for ${url} | body: ${bodySnippet || "(empty)"}`
+    );
   }
   const html = await resp.text();
   const $ = cheerio.load(html);

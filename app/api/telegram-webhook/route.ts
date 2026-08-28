@@ -24,7 +24,11 @@ export async function POST(req: NextRequest) {
   const text: string | undefined = update?.message?.text;
 
   if (text?.trim() === "/check") {
-    await sendPlainMessage("Checking now — this takes a minute for ~105 pages, hang on...");
+    try {
+      await sendPlainMessage("Checking now — this takes a minute for ~105 pages, hang on...");
+    } catch (notifyErr) {
+      console.error("Failed to send 'checking now' Telegram message:", notifyErr);
+    }
     try {
       const summary = await runScan();
       const msg =
@@ -33,7 +37,12 @@ export async function POST(req: NextRequest) {
           : `Done. No changes since last check. ${summary.failed.length} page(s) failed to fetch.`;
       await sendPlainMessage(msg);
     } catch (err) {
-      await sendPlainMessage(`Scan failed: ${String(err)}`);
+      console.error("Scan or notify failed:", err);
+      try {
+        await sendPlainMessage(`Scan failed: ${String(err)}`);
+      } catch (notifyErr) {
+        console.error("Failed to send scan-failure Telegram message:", notifyErr);
+      }
     }
   }
 
