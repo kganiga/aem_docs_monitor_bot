@@ -8,7 +8,7 @@
  * 105 simultaneous requests.
  */
 import * as Diff from "diff";
-import urls from "../config/urls.json";
+import urls from "../config/urls_verified.json";
 import { getPageState, setPageState, PageState } from "./db";
 import { scrapePage } from "./scraper";
 import { sendUpdateNotification } from "./notify";
