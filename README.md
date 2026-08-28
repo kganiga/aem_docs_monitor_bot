@@ -65,8 +65,21 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 npm install
 node scripts/validate-urls.mjs
 ```
-Writes `config/urls_verified.json`. Point `lib/scan.ts`'s import at that
-file if any of the 105 failed (edit the `import urls from` line).
+Writes `config/urls_verified.json`. `lib/scan.ts` imports that file
+directly, so re-run this whenever `config/urls.json` changes and check
+the output before trusting it.
+
+> **Provenance note (2026-08-29):** the original 105-URL list was
+> mechanically generated and only 2 samples were ever confirmed live —
+> 74 of them turned out to be dead links (Adobe had restructured several
+> doc paths, e.g. `administering/msm/*` moved to
+> `administering/reusing-content/msm/*`). Both `config/urls.json` and
+> `config/urls_verified.json` were regenerated from Adobe's own sitemap
+> (`https://experienceleague.adobe.com/en/sitemap.xml`, filtered to the
+> `experience-manager-cloud-service/content/sites/` path) and every one
+> of the resulting 140 URLs was confirmed with a live `200 OK` before
+> being committed. Re-run `validate-urls.mjs` periodically — sitemaps
+> and doc structures both drift over time.
 
 **2. Verify content extraction isn't picking up junk.** Run locally:
 ```bash
