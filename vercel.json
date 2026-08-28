@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 8 * * *"
+    }
+  ],
+  "functions": {
+    "app/api/cron/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/telegram-webhook/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
