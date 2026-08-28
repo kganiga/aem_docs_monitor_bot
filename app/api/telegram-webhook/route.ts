@@ -25,17 +25,24 @@ export async function POST(req: NextRequest) {
 
   if (text?.trim() === "/check") {
     try {
-      await sendPlainMessage("Checking now — this takes a minute for ~105 pages, hang on...");
+      await sendPlainMessage("Checking now — this takes a minute, hang on...");
     } catch (notifyErr) {
       console.error("Failed to send 'checking now' Telegram message:", notifyErr);
     }
     try {
       const summary = await runScan();
-      const msg =
+      const parts = [
         summary.changed.length > 0
-          ? `Done. ${summary.changed.length} page(s) changed (sent above), ${summary.failed.length} failed.`
-          : `Done. No changes since last check. ${summary.failed.length} page(s) failed to fetch.`;
-      await sendPlainMessage(msg);
+          ? `${summary.changed.length} page(s) changed (sent above)`
+          : "no content changes",
+      ];
+      if (summary.newlyTracked.length > 0) {
+        parts.push(`${summary.newlyTracked.length} new page(s) discovered`);
+      }
+      if (summary.failed.length > 0) {
+        parts.push(`${summary.failed.length} failed to fetch`);
+      }
+      await sendPlainMessage(`Done. ${parts.join(", ")}.`);
     } catch (err) {
       console.error("Scan or notify failed:", err);
       try {

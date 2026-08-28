@@ -8,10 +8,10 @@
  * 105 simultaneous requests.
  */
 import * as Diff from "diff";
-import urls from "../config/urls_verified.json";
 import { getPageState, setPageState, PageState } from "./db";
 import { scrapePage } from "./scraper";
 import { sendUpdateNotification } from "./notify";
+import { fetchLiveUrls } from "./discover";
 
 const BATCH_SIZE = 10;
 const BATCH_PAUSE_MS = 500; // brief pause between batches -- still polite, just not 2s x 105
@@ -69,7 +69,7 @@ async function processUrl(url: string): Promise<{ status: "changed" | "new" | "u
 
 export async function runScan(): Promise<ScanSummary> {
   const summary: ScanSummary = { checked: 0, changed: [], newlyTracked: [], failed: [] };
-  const list = urls as string[];
+  const list = await fetchLiveUrls();
 
   for (let i = 0; i < list.length; i += BATCH_SIZE) {
     const batch = list.slice(i, i + BATCH_SIZE);

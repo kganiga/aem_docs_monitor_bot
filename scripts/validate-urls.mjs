@@ -1,7 +1,10 @@
-// Run once, locally, before deploying: node scripts/validate-urls.mjs
-// Same purpose as the Python version's validate_urls.py -- this URL
-// list was generated mechanically and only 2 samples were confirmed
-// live. Finds out which of the 105 actually resolve.
+// Run locally: node scripts/validate-urls.mjs
+// lib/discover.ts now pulls the live URL list from Adobe's sitemap on
+// every cron run, so this script's job is narrower than it used to be:
+// it regenerates config/urls_verified.json, the static fallback
+// discover.ts uses if the live sitemap fetch ever fails or looks
+// malformed. Re-run this occasionally so that fallback doesn't itself
+// go stale.
 
 import fs from "fs";
 

@@ -22,6 +22,17 @@ export async function GET(req: NextRequest) {
   try {
     const summary = await runScan();
 
+    if (summary.newlyTracked.length > 0) {
+      const newList = summary.newlyTracked.map((u) => `- ${u}`).join("\n");
+      try {
+        await sendPlainMessage(
+          `🆕 Daily scan: ${summary.newlyTracked.length} new page(s) discovered and now being tracked:\n${newList.slice(0, 2000)}`
+        );
+      } catch (notifyErr) {
+        console.error("Failed to send new-pages Telegram message:", notifyErr);
+      }
+    }
+
     if (summary.failed.length > 0) {
       const failedList = summary.failed.map((f) => `- ${f.url}: ${f.error}`).join("\n");
       try {
