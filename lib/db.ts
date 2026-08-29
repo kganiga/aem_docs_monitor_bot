@@ -51,3 +51,20 @@ export async function listTrackedUrls(): Promise<string[]> {
   const keys = await redis.keys("page:*");
   return keys.map((k) => k.slice("page:".length));
 }
+
+const DISCOVERED_URLS_KEY = "discovered-urls-cache";
+
+// Adobe's sitemap is ~75MB and gets fetched+parsed in full on every run
+// (see lib/discover.ts) -- fine once a day, wasteful if /check gets hit
+// several times in the same day (each call re-downloading the whole
+// thing for a list that hasn't changed). Cached here with a TTL so
+// repeated calls within the window reuse the same result; expires well
+// before the next scheduled cron run so daily discovery still happens.
+export async function getCachedDiscoveredUrls(): Promise<string[] | null> {
+  const data = await redis.get<string[]>(DISCOVERED_URLS_KEY);
+  return data ?? null;
+}
+
+export async function setCachedDiscoveredUrls(urls: string[], ttlSeconds: number): Promise<void> {
+  await redis.set(DISCOVERED_URLS_KEY, urls, { ex: ttlSeconds });
+}

@@ -11,8 +11,16 @@ function formatList(items: string[]): string {
   return shown.join("\n");
 }
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // fixed UTC+5:30, no DST -- manual shift avoids relying on ICU timezone data
+
+function formatIST(isoTimestamp: string): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const d = new Date(new Date(isoTimestamp).getTime() + IST_OFFSET_MS);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} IST`;
+}
+
 export function formatScanSummary(summary: ScanSummary): string {
-  const when = summary.timestamp.replace("T", " ").replace(/\.\d+Z$/, " UTC");
+  const when = formatIST(summary.timestamp);
 
   const lines = [
     `📊 Scan complete — ${when}`,
