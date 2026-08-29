@@ -13,8 +13,15 @@
 import urlsFallback from "../config/urls_verified.json";
 
 const SITEMAP_URL = "https://experienceleague.adobe.com/en/sitemap.xml";
-const PATH_PREFIX =
-  "https://experienceleague.adobe.com/en/docs/experience-manager-cloud-service/content/sites/";
+
+// Sites feature/admin/authoring docs, and the separate developer-facing
+// "implementing" tree (component dev, extending AEM, deploying, developer
+// tools, etc.) -- two distinct top-level sections in Adobe's docs, not
+// nested under each other, so both need their own prefix.
+const PATH_PREFIXES = [
+  "https://experienceleague.adobe.com/en/docs/experience-manager-cloud-service/content/sites/",
+  "https://experienceleague.adobe.com/en/docs/experience-manager-cloud-service/content/implementing/",
+];
 
 export async function fetchLiveUrls(): Promise<string[]> {
   try {
@@ -24,9 +31,11 @@ export async function fetchLiveUrls(): Promise<string[]> {
     }
     const xml = await resp.text();
 
-    const escapedPrefix = PATH_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`<loc>(${escapedPrefix}[^<]*)</loc>`, "g");
-    const urls = [...new Set([...xml.matchAll(re)].map((m) => m[1]))].sort();
+    const escapedAlternation = PATH_PREFIXES.map((p) =>
+      p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    ).join("|");
+    const re = new RegExp(`<loc>(${escapedAlternation})([^<]*)</loc>`, "g");
+    const urls = [...new Set([...xml.matchAll(re)].map((m) => m[1] + m[2]))].sort();
 
     const fallback = urlsFallback as string[];
     if (urls.length < fallback.length / 2) {

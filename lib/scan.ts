@@ -13,8 +13,14 @@ import { scrapePage } from "./scraper";
 import { sendUpdateNotification } from "./notify";
 import { fetchLiveUrls } from "./discover";
 
-const BATCH_SIZE = 10;
-const BATCH_PAUSE_MS = 500; // brief pause between batches -- still polite, just not 2s x 105
+// Coverage grew from 140 to 355 URLs (sites + implementing/developer docs)
+// -- at the original BATCH_SIZE=10/500ms this would run ~65-70s, over the
+// 60s function budget. Bumped concurrency and trimmed the pause to bring a
+// full run back to ~40-45s (measured: 20 concurrent fetches to Adobe in
+// ~600ms), still nowhere near the 105-at-once case this batching exists to
+// avoid.
+const BATCH_SIZE = 20;
+const BATCH_PAUSE_MS = 300;
 
 export interface ScanSummary {
   checked: number;
