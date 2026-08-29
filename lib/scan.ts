@@ -8,7 +8,7 @@
  * 105 simultaneous requests.
  */
 import * as Diff from "diff";
-import { getPageState, setPageState, PageState } from "./db";
+import { getPageState, setPageState, deletePageState, listTrackedUrls, PageState } from "./db";
 import { scrapePage } from "./scraper";
 import { sendUpdateNotification } from "./notify";
 import { fetchLiveUrls } from "./discover";
@@ -18,8 +18,10 @@ const BATCH_PAUSE_MS = 500; // brief pause between batches -- still polite, just
 
 export interface ScanSummary {
   checked: number;
+  timestamp: string;
   changed: string[];
   newlyTracked: string[];
+  removed: string[];
   failed: { url: string; error: string }[];
 }
 
@@ -68,8 +70,24 @@ async function processUrl(url: string): Promise<{ status: "changed" | "new" | "u
 }
 
 export async function runScan(): Promise<ScanSummary> {
-  const summary: ScanSummary = { checked: 0, changed: [], newlyTracked: [], failed: [] };
-  const list = await fetchLiveUrls();
+  const summary: ScanSummary = {
+    checked: 0,
+    timestamp: new Date().toISOString(),
+    changed: [],
+    newlyTracked: [],
+    removed: [],
+    failed: [],
+  };
+  const [list, previouslyTracked] = await Promise.all([fetchLiveUrls(), listTrackedUrls()]);
+
+  // A page missing from the live sitemap but present in Redis was
+  // removed/moved on Adobe's side, not merely unreachable this run --
+  // distinct from `failed`, which only covers URLs still in `list` that
+  // errored. Clean up its state so it's reported once, not every day.
+  const listSet = new Set(list);
+  const removed = previouslyTracked.filter((u) => !listSet.has(u));
+  await Promise.all(removed.map((u) => deletePageState(u)));
+  summary.removed = removed;
 
   for (let i = 0; i < list.length; i += BATCH_SIZE) {
     const batch = list.slice(i, i + BATCH_SIZE);

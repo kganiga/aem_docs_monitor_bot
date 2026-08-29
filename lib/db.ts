@@ -38,3 +38,16 @@ export async function getPageState(url: string): Promise<PageState | null> {
 export async function setPageState(url: string, state: PageState): Promise<void> {
   await redis.set(keyFor(url), state);
 }
+
+export async function deletePageState(url: string): Promise<void> {
+  await redis.del(keyFor(url));
+}
+
+// Used to detect pages that dropped out of the live sitemap (see
+// lib/scan.ts): the set of URLs with stored state IS the set of
+// currently-tracked pages, so no separate "known urls" key needs to be
+// maintained in sync -- it's derived from the same data every time.
+export async function listTrackedUrls(): Promise<string[]> {
+  const keys = await redis.keys("page:*");
+  return keys.map((k) => k.slice("page:".length));
+}

@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scan";
 import { sendPlainMessage } from "@/lib/notify";
+import { formatScanSummary } from "@/lib/summary";
 
 export const maxDuration = 60;
 
@@ -31,18 +32,7 @@ export async function POST(req: NextRequest) {
     }
     try {
       const summary = await runScan();
-      const parts = [
-        summary.changed.length > 0
-          ? `${summary.changed.length} page(s) changed (sent above)`
-          : "no content changes",
-      ];
-      if (summary.newlyTracked.length > 0) {
-        parts.push(`${summary.newlyTracked.length} new page(s) discovered`);
-      }
-      if (summary.failed.length > 0) {
-        parts.push(`${summary.failed.length} failed to fetch`);
-      }
-      await sendPlainMessage(`Done. ${parts.join(", ")}.`);
+      await sendPlainMessage(formatScanSummary(summary));
     } catch (err) {
       console.error("Scan or notify failed:", err);
       try {

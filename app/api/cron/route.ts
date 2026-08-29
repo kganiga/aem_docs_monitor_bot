@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scan";
 import { sendPlainMessage } from "@/lib/notify";
+import { formatScanSummary } from "@/lib/summary";
 
 export const maxDuration = 60;
 
@@ -22,26 +23,10 @@ export async function GET(req: NextRequest) {
   try {
     const summary = await runScan();
 
-    if (summary.newlyTracked.length > 0) {
-      const newList = summary.newlyTracked.map((u) => `- ${u}`).join("\n");
-      try {
-        await sendPlainMessage(
-          `🆕 Daily scan: ${summary.newlyTracked.length} new page(s) discovered and now being tracked:\n${newList.slice(0, 2000)}`
-        );
-      } catch (notifyErr) {
-        console.error("Failed to send new-pages Telegram message:", notifyErr);
-      }
-    }
-
-    if (summary.failed.length > 0) {
-      const failedList = summary.failed.map((f) => `- ${f.url}: ${f.error}`).join("\n");
-      try {
-        await sendPlainMessage(
-          `⚠️ Daily scan: ${summary.failed.length} page(s) failed to fetch:\n${failedList.slice(0, 2000)}`
-        );
-      } catch (notifyErr) {
-        console.error("Failed to send failure-report Telegram message:", notifyErr);
-      }
+    try {
+      await sendPlainMessage(formatScanSummary(summary));
+    } catch (notifyErr) {
+      console.error("Failed to send scan summary Telegram message:", notifyErr);
     }
 
     return NextResponse.json(summary);
