@@ -18,10 +18,16 @@ manage.
   related-articles junk (`lib/scraper.ts`), hashes what's left, and only
   flags a page as "changed" when that hash moves.
 - **Notifies over Telegram**: a diff excerpt for each page that changed,
-  plus one consolidated summary per run (timestamp, pages checked, and
-  counts + URL lists for updated / added / removed / failed).
+  plus one consolidated summary per run (timestamp in IST, pages checked,
+  and counts + URL lists for updated / added / removed / failed).
 - **Runs two ways**: automatically once a day via Vercel Cron, or
   on-demand — message the bot `/check` any time.
+- **Multiple people can subscribe**: `/subscribe` opts a chat into the
+  daily summary + change alerts; `/unsubscribe` opts out. The bot owner
+  (`TELEGRAM_CHAT_ID`) always gets them regardless. `/check` itself stays
+  personal — the reply goes only to whoever asked — but a real page
+  change found during anyone's `/check` still broadcasts to everyone
+  subscribed, since that's genuinely new information for the whole group.
 - **State lives in Upstash Redis** (hosted, free tier) — the one piece
   that isn't self-hosted; serverless functions have no persistent local
   disk, so something external has to hold state between runs.
@@ -88,10 +94,13 @@ nothing yet to diff against).
 
 - **Daily automatic:** Vercel Cron hits `/api/cron` once a day.
 - **On-demand:** message your bot `/check` any time — same scan, same
-  summary format, immediate.
-- Every run sends one summary message (timestamp, checked count, and
-  what's updated/added/removed/failed), plus an individual message with a
-  diff excerpt for each page whose content actually changed.
+  summary format, immediate, replies only to you.
+- **`/subscribe`** to have another Telegram chat also receive the daily
+  summary and change alerts; **`/unsubscribe`** to stop.
+- Every scan sends one summary message (timestamp in IST, checked count,
+  and what's updated/added/removed/failed) to whoever should see it, plus
+  an individual message with a diff excerpt for each page whose content
+  actually changed, broadcast to the owner and all subscribers.
 
 ## Before you trust this for real
 

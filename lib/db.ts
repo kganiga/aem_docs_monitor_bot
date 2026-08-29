@@ -68,3 +68,19 @@ export async function getCachedDiscoveredUrls(): Promise<string[] | null> {
 export async function setCachedDiscoveredUrls(urls: string[], ttlSeconds: number): Promise<void> {
   await redis.set(DISCOVERED_URLS_KEY, urls, { ex: ttlSeconds });
 }
+
+const SUBSCRIBERS_KEY = "subscribers";
+
+// The bot owner (TELEGRAM_CHAT_ID) is always notified regardless of this
+// set -- these are the *additional* people who opted in via /subscribe.
+export async function addSubscriber(chatId: string): Promise<void> {
+  await redis.sadd(SUBSCRIBERS_KEY, chatId);
+}
+
+export async function removeSubscriber(chatId: string): Promise<void> {
+  await redis.srem(SUBSCRIBERS_KEY, chatId);
+}
+
+export async function listSubscribers(): Promise<string[]> {
+  return await redis.smembers(SUBSCRIBERS_KEY);
+}

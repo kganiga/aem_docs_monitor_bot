@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scan";
-import { sendPlainMessage } from "@/lib/notify";
+import { broadcast } from "@/lib/notify";
 import { formatScanSummary } from "@/lib/summary";
 
 export const maxDuration = 60;
@@ -24,9 +24,9 @@ export async function GET(req: NextRequest) {
     const summary = await runScan();
 
     try {
-      await sendPlainMessage(formatScanSummary(summary));
+      await broadcast(formatScanSummary(summary));
     } catch (notifyErr) {
-      console.error("Failed to send scan summary Telegram message:", notifyErr);
+      console.error("Failed to broadcast scan summary:", notifyErr);
     }
 
     return NextResponse.json(summary);
