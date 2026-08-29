@@ -78,16 +78,20 @@ export async function runScan(): Promise<ScanSummary> {
     removed: [],
     failed: [],
   };
-  const [list, previouslyTracked] = await Promise.all([fetchLiveUrls(), listTrackedUrls()]);
+  const [liveList, previouslyTracked] = await Promise.all([fetchLiveUrls(), listTrackedUrls()]);
 
-  // A page missing from the live sitemap but present in Redis was
-  // removed/moved on Adobe's side, not merely unreachable this run --
-  // distinct from `failed`, which only covers URLs still in `list` that
-  // errored. Clean up its state so it's reported once, not every day.
-  const listSet = new Set(list);
-  const removed = previouslyTracked.filter((u) => !listSet.has(u));
-  await Promise.all(removed.map((u) => deletePageState(u)));
-  summary.removed = removed;
+  // A page missing from the sitemap fetch is only a *candidate* removal --
+  // sitemaps aren't guaranteed complete or instantly up to date (a page can
+  // move to a new canonical URL and briefly/permanently drop the old one
+  // from the sitemap while the old URL still 301-redirects to a live page).
+  // Trusting that absence alone previously produced false "removed" reports
+  // for pages that were actually fine. Fold candidates into the same batch
+  // scan instead and only treat a real fetch failure as confirmation --
+  // same principle as fixing the original stale-URL bug: verify with a live
+  // HTTP response, not an indirect signal.
+  const liveSet = new Set(liveList);
+  const candidateRemoved = new Set(previouslyTracked.filter((u) => !liveSet.has(u)));
+  const list = [...liveList, ...candidateRemoved];
 
   for (let i = 0; i < list.length; i += BATCH_SIZE) {
     const batch = list.slice(i, i + BATCH_SIZE);
@@ -100,6 +104,11 @@ export async function runScan(): Promise<ScanSummary> {
       if (r.status === "fulfilled") {
         if (r.value.status === "changed") summary.changed.push(url);
         if (r.value.status === "new") summary.newlyTracked.push(url);
+        // else: still resolves fine, the sitemap fetch just missed it --
+        // processUrl already refreshed its state normally, nothing more to do.
+      } else if (candidateRemoved.has(url)) {
+        await deletePageState(url);
+        summary.removed.push(url);
       } else {
         summary.failed.push({ url, error: String(r.reason) });
       }
