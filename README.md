@@ -1,39 +1,54 @@
 # aem-docs-watcher-next
 
-Same bot, rearchitected for Vercel: Next.js API routes, triggered either
-by Vercel Cron (daily) or by a `/check` command sent to your Telegram bot
-(on-demand). No server to manage — but see "What this costs you" below,
-this isn't free of trade-offs, just a different set of them.
+A Telegram bot that watches Adobe Experience Manager (AEM) Cloud Service
+documentation on Experience League and messages you when a page's content
+actually changes. Runs entirely on Vercel + Upstash Redis — no server to
+manage.
 
-## What changed from the Python/VM version, concretely
+## What it does
 
-- **Trigger:** Vercel Cron (daily, free on Hobby) + Telegram webhook
-  (`/check` command) instead of a single cron line on a VM.
-- **Fetching:** batched concurrent requests (10 at a time) instead of
-  sequential-with-delay — required to fit inside the serverless timeout.
-  This is objectively less polite to Adobe's servers than the original
-  one-at-a-time approach; 10 concurrent requests once a day is still
-  light, but it's a real trade-off, not a free improvement.
-- **Storage:** Upstash Redis (hosted, free tier) instead of a local
-  SQLite file. **This is the one piece that isn't self-hosted** — see
-  `lib/db.ts` for why serverless functions require this.
-- **Language:** TypeScript/Node instead of Python. `cheerio` replaces
-  `BeautifulSoup`, `diff` (jsdiff) replaces `difflib`, native `fetch`
-  replaces `requests`.
+- **Tracks 355 AEM Cloud Service doc pages** — both the Sites
+  feature/admin/authoring docs and the separate developer-facing
+  "implementing" docs (component development, extending AEM, deploying,
+  developer tools, etc.).
+- **Discovers the URL list itself**, fresh, from Adobe's own sitemap on
+  every run (`lib/discover.ts`) — pages Adobe adds or removes are picked
+  up automatically, nothing to maintain by hand.
+- **Diffs real content**, not raw HTML: strips nav/sidebar/cookie-banner/
+  related-articles junk (`lib/scraper.ts`), hashes what's left, and only
+  flags a page as "changed" when that hash moves.
+- **Notifies over Telegram**: a diff excerpt for each page that changed,
+  plus one consolidated summary per run (timestamp, pages checked, and
+  counts + URL lists for updated / added / removed / failed).
+- **Runs two ways**: automatically once a day via Vercel Cron, or
+  on-demand — message the bot `/check` any time.
+- **State lives in Upstash Redis** (hosted, free tier) — the one piece
+  that isn't self-hosted; serverless functions have no persistent local
+  disk, so something external has to hold state between runs.
 
 ## Setup
 
-### 1. Telegram bot (same as before)
-Message `@BotFather` → `/newbot` → copy the token. Message your bot once,
-then get your chat ID from `@userinfobot` or the `getUpdates` endpoint.
+### 1. Clone and install
+```bash
+git clone https://github.com/kganiga/aem_docs_monitor_bot.git
+cd aem_docs_monitor_bot
+npm install
+```
 
-### 2. Upstash Redis (free tier)
+### 2. Telegram bot
+Message `@BotFather` → `/newbot` → copy the token. Message your new bot
+once (anything), then get your chat ID from `@userinfobot` (it replies
+instantly with your numeric `Id`) — needed since Telegram won't let a bot
+message you first.
+
+### 3. Upstash Redis (free tier)
 Go to [upstash.com](https://upstash.com), create a free Redis database.
-Copy the REST URL and REST token it gives you — you'll need both.
+Copy the REST URL and REST token — you'll need both.
 
-### 3. Deploy to Vercel
-Push this to a GitHub repo, import it in Vercel. Before your first deploy,
-set these environment variables in the Vercel project settings:
+### 4. Deploy to Vercel
+Push this repo to your own GitHub, import it in Vercel (auto-deploys on
+every push to `master` after that). Before the first deploy, set these
+environment variables in the Vercel project settings:
 
 ```
 TELEGRAM_BOT_TOKEN=...
@@ -45,12 +60,13 @@ TELEGRAM_WEBHOOK_SECRET=<another random string you generate yourself>
 ```
 
 `CRON_SECRET` and `TELEGRAM_WEBHOOK_SECRET` aren't from anywhere else —
-you're inventing these yourself (e.g. `openssl rand -hex 32`) so that
-your API routes can verify a request actually came from Vercel Cron / Telegram,
-and not from some random person who found your URL.
+invent these yourself (e.g. `openssl rand -hex 32`) so the API routes can
+verify a request actually came from Vercel Cron / Telegram, not from
+whoever finds the URL. Changing an env var requires a redeploy to take
+effect on an existing deployment.
 
-### 4. Register the Telegram webhook
-Once deployed, tell Telegram where to send updates (replace both placeholders):
+### 5. Register the Telegram webhook
+Once deployed, tell Telegram where to send updates:
 
 ```bash
 curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
@@ -58,30 +74,28 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   -d "secret_token=<same value as TELEGRAM_WEBHOOK_SECRET>"
 ```
 
-## Before you trust this for real — same two checks as the Python version, still required
+Verify it took: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"`
+should show your URL with no `last_error_message`.
 
-**1. Validate the URL list.** Run locally:
-```bash
-npm install
-node scripts/validate-urls.mjs
-```
-Writes `config/urls_verified.json`. `lib/scan.ts` imports that file
-directly, so re-run this whenever `config/urls.json` changes and check
-the output before trusting it.
+### 6. First run
+Message your bot `/check`, or wait for the daily cron
+(`0 8 * * *` in `vercel.json` — UTC; adjust for your timezone). The first
+run seeds Redis with baseline content hashes for all 355 pages — expect a
+summary showing everything under "Added", nothing under "Updated" (there's
+nothing yet to diff against).
 
-> **Provenance note (2026-08-29):** the original 105-URL list was
-> mechanically generated and only 2 samples were ever confirmed live —
-> 74 of them turned out to be dead links (Adobe had restructured several
-> doc paths, e.g. `administering/msm/*` moved to
-> `administering/reusing-content/msm/*`). Both `config/urls.json` and
-> `config/urls_verified.json` were regenerated from Adobe's own sitemap
-> (`https://experienceleague.adobe.com/en/sitemap.xml`, filtered to the
-> `experience-manager-cloud-service/content/sites/` path) and every one
-> of the resulting 140 URLs was confirmed with a live `200 OK` before
-> being committed. Re-run `validate-urls.mjs` periodically — sitemaps
-> and doc structures both drift over time.
+## Using it day to day
 
-**2. Verify content extraction isn't picking up junk.** Run locally:
+- **Daily automatic:** Vercel Cron hits `/api/cron` once a day.
+- **On-demand:** message your bot `/check` any time — same scan, same
+  summary format, immediate.
+- Every run sends one summary message (timestamp, checked count, and
+  what's updated/added/removed/failed), plus an individual message with a
+  diff excerpt for each page whose content actually changed.
+
+## Before you trust this for real
+
+**Verify content extraction isn't picking up junk.** Run locally:
 ```bash
 node scripts/debug-scrape.mjs https://experienceleague.adobe.com/en/docs/experience-manager-cloud-service/content/sites/sites-cloud-changes
 ```
@@ -89,29 +103,40 @@ Read the output. Nav links / cookie banners / related-articles text
 instead of the article body means `CONTENT_SELECTORS` in
 `lib/scraper.ts` needs adjusting based on the real page HTML.
 
-## Using it
+**Re-generate the fallback list occasionally.** `lib/scan.ts` pulls the
+live URL list from Adobe's sitemap on every run — `config/urls_verified.json`
+is only the fallback `lib/discover.ts` falls back to if that live fetch
+ever fails or looks malformed. Regenerate it with:
+```bash
+node scripts/validate-urls.mjs
+```
 
-- **Daily automatic:** Vercel Cron hits `/api/cron` once a day
-  (`0 8 * * *` in `vercel.json` — **this is UTC**, adjust for your
-  timezone; 8am UTC is 1:30pm IST).
-- **On-demand:** message your bot `/check` any time.
-- First run of either seeds Redis with baseline hashes — no
-  notifications that first time, same as the original version.
+> **Provenance note (2026-08-29):** the original 105-URL list was
+> mechanically generated and only 2 samples were ever confirmed live — 74
+> of them had gone dead (Adobe restructures doc paths over time, e.g.
+> `administering/msm/*` → `administering/reusing-content/msm/*`), and the
+> list only covered Sites docs, missing the separate `implementing/`
+> developer docs tree entirely. Both gaps are why `lib/discover.ts` now
+> derives the list from Adobe's sitemap live on every run instead of a
+> static file that can silently rot.
 
-## What this costs you, honestly, compared to the VM/Pi version
+## What this costs you, honestly
 
-- One more account to manage (Upstash), one more thing that could
-  change its free-tier terms later — the exact pattern that ruled out
-  Oracle, Fly.io, and Netlify earlier in this build. Nothing stops that
-  from eventually happening to Upstash too.
-- Less polite scraping (concurrent batches vs. sequential-with-delay).
+- One more account to manage (Upstash), one more thing that could change
+  its free-tier terms later.
+- Less polite scraping than a slow sequential crawl would be — batches of
+  20 concurrent requests once a day. Still nowhere near hammering the
+  site, but a real trade-off, not a free improvement.
+- Fetching Adobe's full sitemap (~75MB, every product/locale, no
+  server-side filtering available) on every run costs a few seconds of
+  function time, in exchange for never needing to hand-maintain a URL
+  list again.
 - More moving parts to reason about when something breaks: was it the
-  Vercel deploy, the cron trigger, the Telegram webhook registration,
-  or Upstash — versus one Python process and one cron line on a box
-  you fully control.
+  Vercel deploy, the cron trigger, the Telegram webhook registration, or
+  Upstash — versus one process on a box you fully control.
 - In exchange: no server to patch, no SSH, deploys on git push.
 
-Same unresolved item as before, unavoidable no matter the architecture:
-the content selector is a best-effort guess, not verified against live
-Adobe HTML from this build environment. Check #2 above before turning
-on real notifications.
+The content selector (`CONTENT_SELECTORS` in `lib/scraper.ts`) remains a
+best-effort guess tuned against real Experience League HTML, not a
+guarantee it'll hold for every future template change — check #1 above
+periodically.
