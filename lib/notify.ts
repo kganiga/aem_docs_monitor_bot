@@ -22,7 +22,7 @@ class TelegramSendError extends Error {
   }
 }
 
-async function sendToChat(chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
+async function sendToChat(chatId: string, text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN not set");
@@ -31,12 +31,7 @@ async function sendToChat(chatId: string, text: string, parseMode?: "HTML"): Pro
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: false,
-      ...(parseMode ? { parse_mode: parseMode } : {}),
-    }),
+    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: false }),
   });
 
   if (!resp.ok) {
@@ -51,11 +46,11 @@ function truncate(text: string): string {
     : text;
 }
 
-export async function sendToRequester(chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
-  await sendToChat(chatId, truncate(text), parseMode);
+export async function sendToRequester(chatId: string, text: string): Promise<void> {
+  await sendToChat(chatId, truncate(text));
 }
 
-export async function broadcast(text: string, parseMode?: "HTML"): Promise<void> {
+export async function broadcast(text: string): Promise<void> {
   const ownerChatId = process.env.TELEGRAM_CHAT_ID;
   if (!ownerChatId) {
     throw new Error("TELEGRAM_CHAT_ID not set");
@@ -64,7 +59,7 @@ export async function broadcast(text: string, parseMode?: "HTML"): Promise<void>
   const subscribers = await listSubscribers();
   const recipients = [...new Set([ownerChatId, ...subscribers])];
   const message = truncate(text);
-  const results = await Promise.allSettled(recipients.map((id) => sendToChat(id, message, parseMode)));
+  const results = await Promise.allSettled(recipients.map((id) => sendToChat(id, message)));
 
   let failures = 0;
   for (let i = 0; i < results.length; i++) {
@@ -86,21 +81,16 @@ export async function broadcast(text: string, parseMode?: "HTML"): Promise<void>
   }
 }
 
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 export async function sendUpdateNotification(
   url: string,
   title: string,
   digest: string,
   metaLastUpdate: string | null
 ): Promise<void> {
-  // Title itself is the clickable link -- no separate "here's the URL"
-  // line needed, and Telegram renders a preview card for it below the
-  // message text since disable_web_page_preview stays false.
-  const lines = [`📄 <a href="${escapeHtml(url)}"><b>${escapeHtml(title)}</b></a>`];
-  if (metaLastUpdate) lines.push(`🕐 Last updated: ${escapeHtml(metaLastUpdate)}`);
-  lines.push(escapeHtml(digest));
-  await broadcast(lines.join("\n"), "HTML");
+  // Plain text -- Telegram auto-links a bare URL on its own line without
+  // needing parse_mode/HTML at all.
+  const lines = [title];
+  if (metaLastUpdate) lines.push(`Last updated: ${metaLastUpdate}`);
+  lines.push(digest, "", url);
+  await broadcast(lines.join("\n"));
 }
