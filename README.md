@@ -119,8 +119,8 @@ nothing yet to diff against).
   what's updated/added/removed/failed, and a digest (title, last-updated
   date, one-sentence summary, link) for each page that actually changed
   — broadcast to the owner and all subscribers.
-- **`/lastScan`** — when the last scan ran and how many pages it
-  checked. **`/lastModified`** — what changed in the last scan.
+- **`/lastscan`** — when the last scan ran and how many pages it
+  checked. **`/lastmodified`** — what changed in the last scan.
   **`/failed`** — pages that failed to fetch in the last scan.
   **`/status`** — pages tracked, last scan stats, subscriber count. All
   four answer from the persisted result of the last scan, no new scrape.

@@ -15,7 +15,7 @@
  *  - /subscribe, /unsubscribe: opt in/out of the daily broadcast (scan
  *    summary + change notifications). The bot owner (TELEGRAM_CHAT_ID)
  *    always gets the broadcast regardless of this list.
- *  - /lastScan, /lastModified, /failed, /status: all answer from the
+ *  - /lastscan, /lastmodified, /failed, /status: all answer from the
  *    last scan's persisted result (lib/db.ts setLastScanSummary/
  *    getLastScanSummary) instead of triggering a new scan -- these are
  *    all questions about history, not new work.
@@ -43,8 +43,8 @@ const HELP_TEXT = `Commands:
 /check - run a scan now, replies here with the result
 /subscribe - get the daily scan summary and change alerts
 /unsubscribe - stop getting them
-/lastScan - when the last scan ran and how many pages it checked
-/lastModified - what changed in the last scan
+/lastscan - when the last scan ran and how many pages it checked
+/lastmodified - what changed in the last scan
 /failed - pages that failed to fetch in the last scan
 /status - overall health: pages tracked, last scan, subscribers
 /sitemap - every tracked page, grouped by section
@@ -64,7 +64,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const command = text?.trim();
+  // Lowercased so a manually-typed "/Check" or BotFather's own lowercase-
+  // only menu commands (Telegram requires ^[a-z0-9_]{1,32}$ for those)
+  // both match -- none of these commands take arguments, so this is safe.
+  const command = text?.trim().toLowerCase();
 
   if (command === "/help" || command === "/start") {
     await sendToRequester(chatId, HELP_TEXT).catch((e) => console.error("Failed to send /help:", e));
@@ -94,7 +97,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  if (command === "/lastScan") {
+  if (command === "/lastscan") {
     try {
       const last = await getLastScanSummary();
       await sendToRequester(
@@ -104,12 +107,12 @@ export async function POST(req: NextRequest) {
           : "No scan has completed yet."
       );
     } catch (err) {
-      console.error("Failed to process /lastScan:", err);
+      console.error("Failed to process /lastscan:", err);
     }
     return NextResponse.json({ ok: true });
   }
 
-  if (command === "/lastModified") {
+  if (command === "/lastmodified") {
     try {
       const last = await getLastScanSummary();
       if (!last) {
@@ -121,7 +124,7 @@ export async function POST(req: NextRequest) {
         await sendToRequester(chatId, lines.join("\n").trimEnd());
       }
     } catch (err) {
-      console.error("Failed to process /lastModified:", err);
+      console.error("Failed to process /lastmodified:", err);
     }
     return NextResponse.json({ ok: true });
   }
