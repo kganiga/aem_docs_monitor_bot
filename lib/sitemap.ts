@@ -1,15 +1,11 @@
 /**
- * Formats the tracked URL list for /sitemap as a small number of
- * Telegram messages with clickable titles (HTML parse_mode).
- *
- * 355 pages across 16 sections, one as large as 73 pages -- a naive
- * "one message per section" would still be ~20 messages once large
- * sections get split to fit Telegram's length limit. Bin-packs section
- * headers and page links into as few messages as possible instead: small
- * sections share a message, only sections too big to fit alone get split.
+ * Builds the /sitemap HTML document -- all tracked pages, grouped by
+ * section, titles as real links. Sent as a single file (lib/notify.ts
+ * sendDocumentToRequester) rather than the ~19 Telegram messages a
+ * chat-message version of this would take at 355 pages: one API call
+ * instead of nineteen, no chat clutter, opens in a browser where a long
+ * reference list is easier to read/search than scrolling chat anyway.
  */
-const MAX_MESSAGE_LEN = 3500;
-
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -25,7 +21,7 @@ function sectionLabel(key: string): string {
   return sub ? `${cap(top)}: ${cap(sub)}` : cap(top);
 }
 
-export function formatSitemapMessages(pages: { url: string; title: string }[]): string[] {
+export function formatSitemapHtml(pages: { url: string; title: string }[]): string {
   const bySection = new Map<string, { url: string; title: string }[]>();
   for (const p of [...pages].sort((a, b) => a.title.localeCompare(b.title))) {
     const key = sectionKey(p.url);
@@ -33,33 +29,28 @@ export function formatSitemapMessages(pages: { url: string; title: string }[]): 
     bySection.get(key)!.push(p);
   }
 
-  const messages: string[] = [];
-  let current: string[] = [];
-  let currentLen = 0;
+  const sections = [...bySection.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
-  function flush() {
-    if (current.length > 0) {
-      messages.push(current.join("\n"));
-      current = [];
-      currentLen = 0;
-    }
-  }
+  const body = sections
+    .map(([key, sectionPages]) => {
+      const items = sectionPages
+        .map((p) => `<li><a href="${escapeHtml(p.url)}">${escapeHtml(p.title)}</a></li>`)
+        .join("\n");
+      return `<h2>${escapeHtml(sectionLabel(key))} (${sectionPages.length})</h2>\n<ul>\n${items}\n</ul>`;
+    })
+    .join("\n");
 
-  function pushLine(line: string) {
-    const addLen = line.length + 1;
-    if (currentLen + addLen > MAX_MESSAGE_LEN) flush();
-    current.push(line);
-    currentLen += addLen;
-  }
-
-  for (const [key, sectionPages] of [...bySection.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    if (current.length > 0) pushLine("");
-    pushLine(`<b>${escapeHtml(sectionLabel(key))}</b> (${sectionPages.length})`);
-    for (const p of sectionPages) {
-      pushLine(`<a href="${escapeHtml(p.url)}">${escapeHtml(p.title)}</a>`);
-    }
-  }
-  flush();
-
-  return messages.length > 0 ? messages : ["No pages are currently tracked."];
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AEM Docs Sitemap</title>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem}
+h1{font-size:1.4rem}h2{font-size:1.1rem;margin-top:2rem}li{margin:.25rem 0}</style>
+</head>
+<body>
+<h1>Tracked Pages (${pages.length})</h1>
+${body || "<p>No pages are currently tracked.</p>"}
+</body>
+</html>`;
 }

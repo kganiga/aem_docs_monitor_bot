@@ -22,7 +22,7 @@ class TelegramSendError extends Error {
   }
 }
 
-async function sendToChat(chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
+async function sendToChat(chatId: string, text: string): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN not set");
@@ -31,12 +31,7 @@ async function sendToChat(chatId: string, text: string, parseMode?: "HTML"): Pro
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: false,
-      ...(parseMode ? { parse_mode: parseMode } : {}),
-    }),
+    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: false }),
   });
 
   if (!resp.ok) {
@@ -51,10 +46,39 @@ function truncate(text: string): string {
     : text;
 }
 
-// parseMode is only meaningful here, not on broadcast() -- /sitemap is
-// the one place a requester reply needs HTML for clickable links.
-export async function sendToRequester(chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
-  await sendToChat(chatId, truncate(text), parseMode);
+export async function sendToRequester(chatId: string, text: string): Promise<void> {
+  await sendToChat(chatId, truncate(text));
+}
+
+// /sitemap sends a file instead of ~19 chat messages for 355 pages --
+// one multipart upload to Telegram's sendDocument, no external hosting
+// needed since the file only ever exists in memory for this one request.
+export async function sendDocumentToRequester(
+  chatId: string,
+  filename: string,
+  content: string,
+  mimeType: string,
+  caption?: string
+): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN not set");
+  }
+
+  const form = new FormData();
+  form.append("chat_id", chatId);
+  if (caption) form.append("caption", caption);
+  form.append("document", new Blob([content], { type: mimeType }), filename);
+
+  const resp = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new TelegramSendError(chatId, resp.status, body);
+  }
 }
 
 export async function broadcast(text: string): Promise<void> {

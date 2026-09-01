@@ -36,6 +36,24 @@ export function formatChangedDetails(details: ChangeDetail[]): string[] {
   return lines;
 }
 
+const ERROR_PREVIEW_LEN = 150;
+
+// Used by the /failed command -- one url/error block per failure (error
+// text capped since scraper.ts failure messages can carry a 300-char
+// response-body snippet), same truncation rule as the other list helpers.
+export function formatFailedList(failed: { url: string; error: string }[]): string[] {
+  const lines: string[] = [];
+  for (const f of failed.slice(0, LIST_PREVIEW)) {
+    const err = f.error.length > ERROR_PREVIEW_LEN ? f.error.slice(0, ERROR_PREVIEW_LEN) + "..." : f.error;
+    lines.push(f.url, err, "");
+  }
+  if (failed.length > LIST_PREVIEW) {
+    const rest = failed.slice(LIST_PREVIEW).map((f) => f.url);
+    lines.push(`...and ${rest.length} more:`, formatList(rest));
+  }
+  return lines;
+}
+
 export function formatScanSummary(summary: ScanSummary): string {
   const when = formatIST(summary.timestamp);
 
