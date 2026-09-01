@@ -10,7 +10,6 @@
 import * as Diff from "diff";
 import { getPageState, setPageState, deletePageState, listTrackedUrls, PageState } from "./db";
 import { scrapePage } from "./scraper";
-import { sendUpdateNotification } from "./notify";
 import { fetchLiveUrls } from "./discover";
 import { summarizeChange } from "./summarize";
 
@@ -23,10 +22,18 @@ import { summarizeChange } from "./summarize";
 const BATCH_SIZE = 20;
 const BATCH_PAUSE_MS = 300;
 
+export interface ChangeDetail {
+  url: string;
+  title: string;
+  digest: string;
+  metaLastUpdate: string | null;
+}
+
 export interface ScanSummary {
   checked: number;
   timestamp: string;
   changed: string[];
+  changedDetails: ChangeDetail[];
   newlyTracked: string[];
   removed: string[];
   failed: { url: string; error: string }[];
@@ -48,7 +55,11 @@ function buildDiffExcerpt(oldText: string, newText: string, maxLines = 25): stri
   return lines.length ? lines.join("\n") : "(content changed but no line-level diff produced)";
 }
 
-async function processUrl(url: string): Promise<{ status: "changed" | "new" | "unchanged"; url: string }> {
+type ProcessResult =
+  | { status: "changed"; url: string; detail: ChangeDetail }
+  | { status: "new" | "unchanged"; url: string };
+
+async function processUrl(url: string): Promise<ProcessResult> {
   const result = await scrapePage(url);
   const prior = await getPageState(url);
   const now = new Date().toISOString();
@@ -69,9 +80,12 @@ async function processUrl(url: string): Promise<{ status: "changed" | "new" | "u
   if (prior.contentHash !== result.hash) {
     const diffExcerpt = buildDiffExcerpt(prior.contentSnapshot, result.text);
     const digest = await summarizeChange(diffExcerpt);
-    await sendUpdateNotification(url, result.title, digest, result.metaLastUpdate);
     await setPageState(url, newState);
-    return { status: "changed", url };
+    return {
+      status: "changed",
+      url,
+      detail: { url, title: result.title, digest, metaLastUpdate: result.metaLastUpdate },
+    };
   }
 
   await setPageState(url, newState); // refresh lastCheckedAt even when unchanged
@@ -83,6 +97,7 @@ export async function runScan(): Promise<ScanSummary> {
     checked: 0,
     timestamp: new Date().toISOString(),
     changed: [],
+    changedDetails: [],
     newlyTracked: [],
     removed: [],
     failed: [],
@@ -111,7 +126,10 @@ export async function runScan(): Promise<ScanSummary> {
       const url = batch[j];
       summary.checked++;
       if (r.status === "fulfilled") {
-        if (r.value.status === "changed") summary.changed.push(url);
+        if (r.value.status === "changed") {
+          summary.changed.push(url);
+          summary.changedDetails.push(r.value.detail);
+        }
         if (r.value.status === "new") summary.newlyTracked.push(url);
         // else: still resolves fine, the sitemap fetch just missed it --
         // processUrl already refreshed its state normally, nothing more to do.

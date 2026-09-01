@@ -23,27 +23,32 @@ export function formatScanSummary(summary: ScanSummary): string {
   const when = formatIST(summary.timestamp);
 
   const lines = [
-    `📊 Scan complete — ${when}`,
-    `Checked: ${summary.checked} page(s)`,
-    `✏️ Updated: ${summary.changed.length}`,
-    `🆕 Added: ${summary.newlyTracked.length}`,
-    `🗑️ Removed: ${summary.removed.length}`,
-    `⚠️ Failed: ${summary.failed.length}`,
+    `Scan complete — ${when}`,
+    `Checked: ${summary.checked} | Updated: ${summary.changed.length} | Added: ${summary.newlyTracked.length} | Removed: ${summary.removed.length} | Failed: ${summary.failed.length}`,
   ];
 
-  if (summary.changed.length > 0) {
-    lines.push("", "Updated:", formatList(summary.changed));
+  if (summary.changedDetails.length > 0) {
+    lines.push("");
+    for (const c of summary.changedDetails.slice(0, LIST_PREVIEW)) {
+      lines.push(c.title);
+      if (c.metaLastUpdate) lines.push(`Last updated: ${c.metaLastUpdate}`);
+      lines.push(c.digest, c.url, "");
+    }
+    if (summary.changedDetails.length > LIST_PREVIEW) {
+      const rest = summary.changedDetails.slice(LIST_PREVIEW).map((c) => c.url);
+      lines.push(`...and ${rest.length} more updated page(s):`, formatList(rest), "");
+    }
   }
   if (summary.newlyTracked.length > 0) {
-    lines.push("", "Added:", formatList(summary.newlyTracked));
+    lines.push("Added:", formatList(summary.newlyTracked), "");
   }
   if (summary.removed.length > 0) {
-    lines.push("", "Removed:", formatList(summary.removed));
+    lines.push("Removed:", formatList(summary.removed), "");
   }
   if (summary.failed.length > 0) {
-    lines.push("", "Failed:", formatList(summary.failed.map((f) => `${f.url}: ${f.error}`)));
+    lines.push("Failed:", formatList(summary.failed.map((f) => `${f.url}: ${f.error}`)), "");
   }
 
-  const text = lines.join("\n");
+  const text = lines.join("\n").trimEnd();
   return text.length > MAX_MESSAGE_LEN ? text.slice(0, MAX_MESSAGE_LEN) + "\n...(truncated)" : text;
 }

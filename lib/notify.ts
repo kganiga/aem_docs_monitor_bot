@@ -6,11 +6,11 @@
  * Two delivery modes:
  *  - sendToRequester: replies to whoever's chat sent a command (/check,
  *    /subscribe, ...) -- personal, immediate, not seen by anyone else.
- *  - broadcast: the daily cron summary and every "page actually changed"
- *    notification go to the owner (TELEGRAM_CHAT_ID) plus everyone who
- *    has /subscribe'd (lib/db.ts), since a real content change is
- *    genuinely relevant to everyone watching, not just whoever happened
- *    to trigger the scan that found it.
+ *  - broadcast: the single consolidated scan-result message (counts +
+ *    a digest for each page that changed, see lib/summary.ts) goes to
+ *    the owner (TELEGRAM_CHAT_ID) plus everyone who has /subscribe'd
+ *    (lib/db.ts) -- a real content change is genuinely relevant to
+ *    everyone watching, not just whoever happened to trigger the scan.
  */
 import { listSubscribers, removeSubscriber } from "./db";
 
@@ -79,18 +79,4 @@ export async function broadcast(text: string): Promise<void> {
   if (failures === recipients.length) {
     throw new Error(`broadcast failed for all ${recipients.length} recipient(s)`);
   }
-}
-
-export async function sendUpdateNotification(
-  url: string,
-  title: string,
-  digest: string,
-  metaLastUpdate: string | null
-): Promise<void> {
-  // Plain text -- Telegram auto-links a bare URL on its own line without
-  // needing parse_mode/HTML at all.
-  const lines = [title];
-  if (metaLastUpdate) lines.push(`Last updated: ${metaLastUpdate}`);
-  lines.push(digest, "", url);
-  await broadcast(lines.join("\n"));
 }

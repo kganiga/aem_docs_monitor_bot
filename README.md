@@ -17,12 +17,12 @@ manage.
 - **Diffs real content**, not raw HTML: strips nav/sidebar/cookie-banner/
   related-articles junk (`lib/scraper.ts`), hashes what's left, and only
   flags a page as "changed" when that hash moves.
-- **Notifies over Telegram**: for each page that actually changed, a
-  clickable title, the page's own last-updated date, and a one-sentence
-  summary of what changed (real AI summary if `GEMINI_API_KEY` is set,
-  otherwise a deterministic lines-changed count) — not a raw diff dump.
-  Plus one consolidated summary per run (timestamp in IST, pages checked,
-  and counts + URL lists for updated / added / removed / failed).
+- **Notifies over Telegram with a single message per run**: timestamp
+  (IST), checked/updated/added/removed/failed counts, and — for each
+  page that actually changed — its title, last-updated date, a
+  one-sentence summary (real AI summary if `GEMINI_API_KEY` is set,
+  otherwise a deterministic lines-changed count), and a link. Not a raw
+  diff dump, and not a separate message per page.
 - **Runs two ways**: automatically once a day via Vercel Cron, or
   on-demand — message the bot `/check` any time.
 - **Multiple people can subscribe**: `/subscribe` opts a chat into the
@@ -115,11 +115,10 @@ nothing yet to diff against).
   summary format, immediate, replies only to you.
 - **`/subscribe`** to have another Telegram chat also receive the daily
   summary and change alerts; **`/unsubscribe`** to stop.
-- Every scan sends one summary message (timestamp in IST, checked count,
-  and what's updated/added/removed/failed) to whoever should see it, plus
-  a digest for each page whose content actually changed (clickable title,
-  last-updated date, one-sentence summary), broadcast to the owner and
-  all subscribers.
+- Every scan sends exactly one message: timestamp in IST, checked count,
+  what's updated/added/removed/failed, and a digest (title, last-updated
+  date, one-sentence summary, link) for each page that actually changed
+  — broadcast to the owner and all subscribers.
 
 ## Before you trust this for real
 
