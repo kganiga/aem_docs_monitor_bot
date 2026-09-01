@@ -8,7 +8,7 @@
  * 105 simultaneous requests.
  */
 import * as Diff from "diff";
-import { getPageState, setPageState, deletePageState, listTrackedUrls, PageState } from "./db";
+import { getPageState, setPageState, deletePageState, listTrackedUrls, setLastScanSummary, PageState } from "./db";
 import { scrapePage } from "./scraper";
 import { fetchLiveUrls } from "./discover";
 import { summarizeChange } from "./summarize";
@@ -146,5 +146,6 @@ export async function runScan(): Promise<ScanSummary> {
     }
   }
 
+  await setLastScanSummary(summary);
   return summary;
 }

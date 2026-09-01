@@ -22,7 +22,7 @@ class TelegramSendError extends Error {
   }
 }
 
-async function sendToChat(chatId: string, text: string): Promise<void> {
+async function sendToChat(chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN not set");
@@ -31,7 +31,12 @@ async function sendToChat(chatId: string, text: string): Promise<void> {
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: false }),
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: false,
+      ...(parseMode ? { parse_mode: parseMode } : {}),
+    }),
   });
 
   if (!resp.ok) {
@@ -46,8 +51,10 @@ function truncate(text: string): string {
     : text;
 }
 
-export async function sendToRequester(chatId: string, text: string): Promise<void> {
-  await sendToChat(chatId, truncate(text));
+// parseMode is only meaningful here, not on broadcast() -- /sitemap is
+// the one place a requester reply needs HTML for clickable links.
+export async function sendToRequester(chatId: string, text: string, parseMode?: "HTML"): Promise<void> {
+  await sendToChat(chatId, truncate(text), parseMode);
 }
 
 export async function broadcast(text: string): Promise<void> {

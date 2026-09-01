@@ -119,6 +119,13 @@ nothing yet to diff against).
   what's updated/added/removed/failed, and a digest (title, last-updated
   date, one-sentence summary, link) for each page that actually changed
   — broadcast to the owner and all subscribers.
+- **`/lastScan`** — when the last scan ran and how many pages it
+  checked. **`/lastModified`** — what changed in the last scan. Both
+  answer from the persisted result of the last scan, no new scrape.
+- **`/sitemap`** — every tracked page, grouped by section, titles as
+  clickable links. Sent as ~19 separate messages (355 pages don't fit in
+  one), paced ~400ms apart to stay under Telegram's flood-control limit.
+- **`/help`** lists all commands.
 
 ## Before you trust this for real
 

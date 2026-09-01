@@ -16,6 +16,7 @@
  * avoiding a VM.
  */
 import { Redis } from "@upstash/redis";
+import type { ScanSummary } from "./scan";
 
 const redis = Redis.fromEnv();
 
@@ -53,6 +54,17 @@ export async function listTrackedUrls(): Promise<string[]> {
   return keys.map((k) => k.slice("page:".length));
 }
 
+// One batched MGET instead of 355 individual GETs for /sitemap.
+export async function listAllPageInfo(): Promise<{ url: string; title: string }[]> {
+  const keys = await redis.keys("page:*");
+  if (keys.length === 0) return [];
+  const states = await redis.mget<(PageState | null)[]>(...keys);
+  return keys.map((k, i) => ({
+    url: k.slice("page:".length),
+    title: states[i]?.title ?? k.slice("page:".length),
+  }));
+}
+
 const DISCOVERED_URLS_KEY = "discovered-urls-cache";
 
 // Adobe's sitemap is ~75MB and gets fetched+parsed in full on every run
@@ -84,4 +96,19 @@ export async function removeSubscriber(chatId: string): Promise<void> {
 
 export async function listSubscribers(): Promise<string[]> {
   return await redis.smembers(SUBSCRIBERS_KEY);
+}
+
+const LAST_SCAN_KEY = "last-scan-summary";
+
+// Powers /lastScan and /lastModified -- both answer from this instead of
+// triggering a fresh scan, since "when did we last check" and "what
+// changed last time" are questions about history, not a reason to
+// re-scrape 355 pages.
+export async function setLastScanSummary(summary: ScanSummary): Promise<void> {
+  await redis.set(LAST_SCAN_KEY, summary);
+}
+
+export async function getLastScanSummary(): Promise<ScanSummary | null> {
+  const data = await redis.get<ScanSummary>(LAST_SCAN_KEY);
+  return data ?? null;
 }
