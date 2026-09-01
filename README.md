@@ -17,9 +17,12 @@ manage.
 - **Diffs real content**, not raw HTML: strips nav/sidebar/cookie-banner/
   related-articles junk (`lib/scraper.ts`), hashes what's left, and only
   flags a page as "changed" when that hash moves.
-- **Notifies over Telegram**: a diff excerpt for each page that changed,
-  plus one consolidated summary per run (timestamp in IST, pages checked,
-  and counts + URL lists for updated / added / removed / failed).
+- **Notifies over Telegram**: a one-line digest (page title, metadata
+  last-update date, lines changed) for each page that actually changed —
+  not a raw diff dump — plus one consolidated summary per run (timestamp
+  in IST, pages checked, and counts + URL lists for updated / added /
+  removed / failed). The full diff for any change is available on request
+  via `/diff <url>` instead of being pushed to everyone by default.
 - **Runs two ways**: automatically once a day via Vercel Cron, or
   on-demand — message the bot `/check` any time.
 - **Multiple people can subscribe**: `/subscribe` opts a chat into the
@@ -63,6 +66,7 @@ UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 CRON_SECRET=<any random string you generate yourself>
 TELEGRAM_WEBHOOK_SECRET=<another random string you generate yourself>
+GEMINI_API_KEY=<optional -- see below>
 ```
 
 `CRON_SECRET` and `TELEGRAM_WEBHOOK_SECRET` aren't from anywhere else —
@@ -70,6 +74,17 @@ invent these yourself (e.g. `openssl rand -hex 32`) so the API routes can
 verify a request actually came from Vercel Cron / Telegram, not from
 whoever finds the URL. Changing an env var requires a redeploy to take
 effect on an existing deployment.
+
+`GEMINI_API_KEY` is optional. Without it, the one-line change digest is
+built from data we already have (metadata last-update date + lines-
+changed count) — accurate, zero cost, zero dependency. With a free key
+from [Google AI Studio](https://aistudio.google.com/apikey) (no credit
+card, `gemini-3.7-flash` is free of charge and the free tier doesn't
+expire — a handful of page-changes a day is nowhere near its ~1,500
+req/day), the digest becomes a real one-sentence summary of what
+changed instead of a line count. If the key is missing, invalid, or the
+call fails for any reason, it silently falls back to the heuristic
+digest — an optional AI call never blocks a notification.
 
 ### 5. Register the Telegram webhook
 Once deployed, tell Telegram where to send updates:
@@ -97,10 +112,13 @@ nothing yet to diff against).
   summary format, immediate, replies only to you.
 - **`/subscribe`** to have another Telegram chat also receive the daily
   summary and change alerts; **`/unsubscribe`** to stop.
+- **`/diff <url>`** to get the full raw diff for a page that changed
+  recently — the broadcast itself only shows a one-line digest, this is
+  the on-request follow-up. Copy the URL from the digest message.
 - Every scan sends one summary message (timestamp in IST, checked count,
   and what's updated/added/removed/failed) to whoever should see it, plus
-  an individual message with a diff excerpt for each page whose content
-  actually changed, broadcast to the owner and all subscribers.
+  a one-line digest for each page whose content actually changed,
+  broadcast to the owner and all subscribers.
 
 ## Before you trust this for real
 

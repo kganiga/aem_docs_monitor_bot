@@ -81,6 +81,14 @@ export async function broadcast(text: string): Promise<void> {
   }
 }
 
-export async function sendUpdateNotification(url: string, diffExcerpt: string): Promise<void> {
-  await broadcast(`📄 Doc updated:\n${url}\n\n${diffExcerpt}`);
+export async function sendUpdateNotification(
+  url: string,
+  title: string,
+  digest: string,
+  metaLastUpdate: string | null
+): Promise<void> {
+  const lines = [`📄 ${title} — content updated`];
+  if (metaLastUpdate) lines.push(`🕐 ${metaLastUpdate}`);
+  lines.push(digest, "", `🔗 ${url}`, `(reply /diff ${url} for the full change detail)`);
+  await broadcast(lines.join("\n"));
 }

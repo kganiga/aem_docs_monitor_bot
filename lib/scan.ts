@@ -8,10 +8,11 @@
  * 105 simultaneous requests.
  */
 import * as Diff from "diff";
-import { getPageState, setPageState, deletePageState, listTrackedUrls, PageState } from "./db";
+import { getPageState, setPageState, deletePageState, listTrackedUrls, setLastDiff, PageState } from "./db";
 import { scrapePage } from "./scraper";
 import { sendUpdateNotification } from "./notify";
 import { fetchLiveUrls } from "./discover";
+import { summarizeChange } from "./summarize";
 
 // Coverage grew from 140 to 355 URLs (sites + implementing/developer docs)
 // -- at the original BATCH_SIZE=10/500ms this would run ~65-70s, over the
@@ -55,6 +56,7 @@ async function processUrl(url: string): Promise<{ status: "changed" | "new" | "u
   const newState: PageState = {
     contentHash: result.hash,
     contentSnapshot: result.text,
+    title: result.title,
     metaLastUpdate: result.metaLastUpdate,
     lastCheckedAt: now,
   };
@@ -66,7 +68,9 @@ async function processUrl(url: string): Promise<{ status: "changed" | "new" | "u
 
   if (prior.contentHash !== result.hash) {
     const diffExcerpt = buildDiffExcerpt(prior.contentSnapshot, result.text);
-    await sendUpdateNotification(url, diffExcerpt);
+    const digest = await summarizeChange(diffExcerpt);
+    await setLastDiff(url, diffExcerpt);
+    await sendUpdateNotification(url, result.title, digest, result.metaLastUpdate);
     await setPageState(url, newState);
     return { status: "changed", url };
   }

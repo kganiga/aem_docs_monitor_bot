@@ -22,6 +22,7 @@ const redis = Redis.fromEnv();
 export interface PageState {
   contentHash: string;
   contentSnapshot: string;
+  title: string;
   metaLastUpdate: string | null;
   lastCheckedAt: string;
 }
@@ -83,4 +84,23 @@ export async function removeSubscriber(chatId: string): Promise<void> {
 
 export async function listSubscribers(): Promise<string[]> {
   return await redis.smembers(SUBSCRIBERS_KEY);
+}
+
+function diffKeyFor(url: string): string {
+  return `diff:${url}`;
+}
+
+const LAST_DIFF_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days -- long enough for /diff <url> to still be useful, not kept forever
+
+// The broadcast for a changed page is a short digest, not the full diff
+// (see lib/notify.ts) -- the full diff is stashed here so /diff <url> in
+// the Telegram webhook can retrieve it on request instead of pushing the
+// whole thing to every subscriber by default.
+export async function setLastDiff(url: string, diffExcerpt: string): Promise<void> {
+  await redis.set(diffKeyFor(url), diffExcerpt, { ex: LAST_DIFF_TTL_SECONDS });
+}
+
+export async function getLastDiff(url: string): Promise<string | null> {
+  const data = await redis.get<string>(diffKeyFor(url));
+  return data ?? null;
 }

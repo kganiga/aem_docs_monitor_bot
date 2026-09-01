@@ -41,8 +41,14 @@ const STRIP_SELECTORS = [
 
 export interface ScrapeResult {
   text: string;
+  title: string;
   hash: string;
   metaLastUpdate: string | null;
+}
+
+function deriveTitleFromUrl(url: string): string {
+  const slug = url.replace(/\/+$/, "").split("/").pop() ?? url;
+  return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export async function scrapePage(url: string): Promise<ScrapeResult> {
@@ -60,6 +66,14 @@ export async function scrapePage(url: string): Promise<ScrapeResult> {
     $('meta[name="last-update"]').attr("content") ??
     $('meta[name="meta-last-update"]').attr("content") ??
     null;
+
+  // <title> ("Page Name | Adobe Experience Manager") is clean; h1 is not --
+  // Experience League appends a visually-hidden anchor-slug duplicate
+  // straight into the h1's text content (e.g. "Managing Content Fragments
+  // managing-content-fragments"), confirmed against a live page, so h1
+  // is only the fallback.
+  const titleTag = $("title").first().text().trim().split("|")[0]?.trim();
+  const title = titleTag || $("h1").first().text().trim() || deriveTitleFromUrl(url);
 
   let container: cheerio.Cheerio<any> | null = null;
   for (const selector of CONTENT_SELECTORS) {
@@ -88,5 +102,5 @@ export async function scrapePage(url: string): Promise<ScrapeResult> {
 
   const hash = createHash("sha256").update(text, "utf-8").digest("hex");
 
-  return { text, hash, metaLastUpdate };
+  return { text, title, hash, metaLastUpdate };
 }
