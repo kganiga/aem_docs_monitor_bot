@@ -8,7 +8,7 @@
  * 105 simultaneous requests.
  */
 import * as Diff from "diff";
-import { getPageState, setPageState, deletePageState, listTrackedUrls, setLastDiff, PageState } from "./db";
+import { getPageState, setPageState, deletePageState, listTrackedUrls, PageState } from "./db";
 import { scrapePage } from "./scraper";
 import { sendUpdateNotification } from "./notify";
 import { fetchLiveUrls } from "./discover";
@@ -69,7 +69,6 @@ async function processUrl(url: string): Promise<{ status: "changed" | "new" | "u
   if (prior.contentHash !== result.hash) {
     const diffExcerpt = buildDiffExcerpt(prior.contentSnapshot, result.text);
     const digest = await summarizeChange(diffExcerpt);
-    await setLastDiff(url, diffExcerpt);
     await sendUpdateNotification(url, result.title, digest, result.metaLastUpdate);
     await setPageState(url, newState);
     return { status: "changed", url };

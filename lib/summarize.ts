@@ -1,16 +1,21 @@
 /**
- * One-line change digest via Gemini's free tier (ai.google.dev --
- * gemini-3.7-flash is free of charge, no credit card required, and the
- * free tier does not expire). A handful of page-change events per day
- * is nowhere near any free-tier ceiling.
+ * One-line change digest via Gemini's free tier (ai.google.dev, no
+ * credit card required, free tier does not expire). Tested live against
+ * both current flash models before picking one: gemini-3.7-flash's free
+ * tier is capped at 5 requests/minute (hit that limit immediately in
+ * testing -- too tight given pages are scanned in batches of 20, so
+ * several real changes in one batch could exceed it). gemini-3.5-flash-lite
+ * (the model Google's own API error for the now-retired 2.5-flash-lite
+ * pointed us to) has a much more generous free allotment and worked
+ * cleanly.
  *
  * GEMINI_API_KEY is optional: without it, or if the call fails for any
- * reason, this falls back to a heuristic digest built from data we
- * already have (no guessing, no dependency) -- an optional AI call
- * must never be the reason a change notification doesn't go out.
+ * reason (including hitting a rate limit), this falls back to a
+ * heuristic digest built from data we already have -- an optional AI
+ * call must never be the reason a change notification doesn't go out.
  */
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
-const GEMINI_MODEL = "gemini-3.7-flash";
+const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
 interface GeminiResponse {
   output_text?: string;

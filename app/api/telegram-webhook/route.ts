@@ -15,15 +15,12 @@
  *  - /subscribe, /unsubscribe: opt in/out of the daily broadcast (scan
  *    summary + change notifications). The bot owner (TELEGRAM_CHAT_ID)
  *    always gets the broadcast regardless of this list.
- *  - /diff <url>: change broadcasts are a one-line digest, not the full
- *    diff (see lib/notify.ts) -- this retrieves the full diff for a
- *    specific page on request, replying only to whoever asked.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scan";
 import { sendToRequester } from "@/lib/notify";
 import { formatScanSummary } from "@/lib/summary";
-import { addSubscriber, removeSubscriber, getLastDiff } from "@/lib/db";
+import { addSubscriber, removeSubscriber } from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -62,22 +59,6 @@ export async function POST(req: NextRequest) {
       await sendToRequester(chatId, "Unsubscribed. Message /subscribe any time to opt back in.");
     } catch (err) {
       console.error("Failed to process /unsubscribe:", err);
-    }
-    return NextResponse.json({ ok: true });
-  }
-
-  if (command?.startsWith("/diff ")) {
-    const url = command.slice("/diff ".length).trim();
-    try {
-      const diff = await getLastDiff(url);
-      await sendToRequester(
-        chatId,
-        diff
-          ? `📄 Full diff for ${url}:\n\n${diff}`
-          : `No stored diff for that URL — either it hasn't changed recently, or the URL doesn't match exactly (copy it from the notification message).`
-      );
-    } catch (err) {
-      console.error("Failed to process /diff:", err);
     }
     return NextResponse.json({ ok: true });
   }

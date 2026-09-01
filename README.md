@@ -17,12 +17,12 @@ manage.
 - **Diffs real content**, not raw HTML: strips nav/sidebar/cookie-banner/
   related-articles junk (`lib/scraper.ts`), hashes what's left, and only
   flags a page as "changed" when that hash moves.
-- **Notifies over Telegram**: a one-line digest (page title, metadata
-  last-update date, lines changed) for each page that actually changed —
-  not a raw diff dump — plus one consolidated summary per run (timestamp
-  in IST, pages checked, and counts + URL lists for updated / added /
-  removed / failed). The full diff for any change is available on request
-  via `/diff <url>` instead of being pushed to everyone by default.
+- **Notifies over Telegram**: for each page that actually changed, a
+  clickable title, the page's own last-updated date, and a one-sentence
+  summary of what changed (real AI summary if `GEMINI_API_KEY` is set,
+  otherwise a deterministic lines-changed count) — not a raw diff dump.
+  Plus one consolidated summary per run (timestamp in IST, pages checked,
+  and counts + URL lists for updated / added / removed / failed).
 - **Runs two ways**: automatically once a day via Vercel Cron, or
   on-demand — message the bot `/check` any time.
 - **Multiple people can subscribe**: `/subscribe` opts a chat into the
@@ -75,16 +75,19 @@ verify a request actually came from Vercel Cron / Telegram, not from
 whoever finds the URL. Changing an env var requires a redeploy to take
 effect on an existing deployment.
 
-`GEMINI_API_KEY` is optional. Without it, the one-line change digest is
-built from data we already have (metadata last-update date + lines-
-changed count) — accurate, zero cost, zero dependency. With a free key
-from [Google AI Studio](https://aistudio.google.com/apikey) (no credit
-card, `gemini-3.7-flash` is free of charge and the free tier doesn't
-expire — a handful of page-changes a day is nowhere near its ~1,500
-req/day), the digest becomes a real one-sentence summary of what
-changed instead of a line count. If the key is missing, invalid, or the
-call fails for any reason, it silently falls back to the heuristic
-digest — an optional AI call never blocks a notification.
+`GEMINI_API_KEY` is optional. Without it, the change digest is built
+from data we already have (a lines-changed count) — accurate, zero
+cost, zero dependency. With a free key from
+[Google AI Studio](https://aistudio.google.com/apikey) (no credit card),
+the digest becomes a real one-sentence AI summary instead. Uses
+`gemini-3.5-flash-lite` specifically, not the newer `gemini-3.7-flash` —
+tested both live: 3.7's free tier is capped at 5 requests/minute (hit
+that limit immediately, and pages are scanned in batches of 20, so
+several real changes in one batch could exceed it), while 3.5-flash-lite
+has a much more generous free allotment. If the key is missing, invalid,
+or the call fails for any reason (including a rate limit), it silently
+falls back to the heuristic digest — an optional AI call never blocks a
+notification.
 
 ### 5. Register the Telegram webhook
 Once deployed, tell Telegram where to send updates:
@@ -112,13 +115,11 @@ nothing yet to diff against).
   summary format, immediate, replies only to you.
 - **`/subscribe`** to have another Telegram chat also receive the daily
   summary and change alerts; **`/unsubscribe`** to stop.
-- **`/diff <url>`** to get the full raw diff for a page that changed
-  recently — the broadcast itself only shows a one-line digest, this is
-  the on-request follow-up. Copy the URL from the digest message.
 - Every scan sends one summary message (timestamp in IST, checked count,
   and what's updated/added/removed/failed) to whoever should see it, plus
-  a one-line digest for each page whose content actually changed,
-  broadcast to the owner and all subscribers.
+  a digest for each page whose content actually changed (clickable title,
+  last-updated date, one-sentence summary), broadcast to the owner and
+  all subscribers.
 
 ## Before you trust this for real
 
