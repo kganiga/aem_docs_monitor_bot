@@ -11,13 +11,14 @@
  *    must match TELEGRAM_CHAT_ID) -- the bot is public now, and a scan
  *    is real work (355 pages fetched from Adobe, a Gemini call per
  *    change), not something any stranger who finds the bot should be
- *    able to trigger on demand. Real page-change notifications from an
- *    admin-run scan still broadcast to everyone subscribed (see
- *    lib/notify.ts) -- a change is real information, not something to
- *    keep from other subscribers just because they didn't trigger it.
- *    Hiding /check from the command menu (BotFather, or a per-chat
- *    setMyCommands scope) is cosmetic only and NOT a substitute for
- *    this check -- anyone can still type it manually.
+ *    able to trigger on demand. Only the "Checking now..." ack and a
+ *    scan-failure message stay personal to the admin -- the actual
+ *    result broadcasts to everyone subscribed (lib/notify.ts), same as
+ *    the daily cron, since a real change is real information regardless
+ *    of who happened to trigger the scan that found it. Hiding /check
+ *    from the command menu (BotFather, or a per-chat setMyCommands
+ *    scope) is cosmetic only and NOT a substitute for the chatId check
+ *    -- anyone can still type it manually.
  *  - /subscribe, /unsubscribe: opt in/out of the daily broadcast (scan
  *    summary + change notifications). The bot owner (TELEGRAM_CHAT_ID)
  *    always gets the broadcast regardless of this list.
@@ -32,7 +33,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scan";
-import { sendToRequester, sendDocumentToRequester } from "@/lib/notify";
+import { sendToRequester, sendDocumentToRequester, broadcast } from "@/lib/notify";
 import { formatScanSummary, formatChangedDetails, formatFailedList, formatIST } from "@/lib/summary";
 import { formatSitemapHtml } from "@/lib/sitemap";
 import {
@@ -207,9 +208,15 @@ export async function POST(req: NextRequest) {
     }
     try {
       const summary = await runScan();
-      await sendToRequester(chatId, formatScanSummary(summary));
+      // The result is the same "what happened" the daily cron reports --
+      // broadcast it to everyone subscribed, not just whoever ran /check.
+      // Otherwise a real change found via an admin /check would silently
+      // never reach subscribers at all.
+      await broadcast(formatScanSummary(summary));
     } catch (err) {
       console.error("Scan or notify failed:", err);
+      // A failed scan is an operational concern for the admin, not
+      // something to alarm every subscriber with -- stays personal.
       try {
         await sendToRequester(chatId, `Scan failed: ${String(err)}`);
       } catch (notifyErr) {
