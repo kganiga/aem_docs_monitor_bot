@@ -24,13 +24,16 @@ manage.
   otherwise a deterministic lines-changed count), and a link. Not a raw
   diff dump, and not a separate message per page.
 - **Runs two ways**: automatically once a day via Vercel Cron, or
-  on-demand — message the bot `/check` any time.
+  on-demand via `/check` — **admin-only** (restricted to
+  `TELEGRAM_CHAT_ID`), since the bot is meant to be shared publicly and
+  a scan is real work (355 pages fetched, a Gemini call per change) that
+  shouldn't be triggerable by anyone who finds the bot. A real page
+  change found during an admin-run `/check` still broadcasts to
+  everyone subscribed, since that's genuinely new information for the
+  whole group regardless of who triggered the scan that found it.
 - **Multiple people can subscribe**: `/subscribe` opts a chat into the
   daily summary + change alerts; `/unsubscribe` opts out. The bot owner
-  (`TELEGRAM_CHAT_ID`) always gets them regardless. `/check` itself stays
-  personal — the reply goes only to whoever asked — but a real page
-  change found during anyone's `/check` still broadcasts to everyone
-  subscribed, since that's genuinely new information for the whole group.
+  (`TELEGRAM_CHAT_ID`) always gets them regardless.
 - **State lives in Upstash Redis** (hosted, free tier) — the one piece
   that isn't self-hosted; serverless functions have no persistent local
   disk, so something external has to hold state between runs.
@@ -102,17 +105,23 @@ Verify it took: `curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"`
 should show your URL with no `last_error_message`.
 
 ### 6. First run
-Message your bot `/check`, or wait for the daily cron
-(`0 8 * * *` in `vercel.json` — UTC; adjust for your timezone). The first
-run seeds Redis with baseline content hashes for all 355 pages — expect a
-summary showing everything under "Added", nothing under "Updated" (there's
+Message your bot `/check` from the chat matching `TELEGRAM_CHAT_ID`
+(admin-only, see below), or wait for the daily cron (`0 8 * * *` in
+`vercel.json` — UTC; adjust for your timezone). The first run seeds
+Redis with baseline content hashes for all 355 pages — expect a summary
+showing everything under "Added", nothing under "Updated" (there's
 nothing yet to diff against).
 
 ## Using it day to day
 
 - **Daily automatic:** Vercel Cron hits `/api/cron` once a day.
 - **On-demand:** message your bot `/check` any time — same scan, same
-  summary format, immediate, replies only to you.
+  summary format, immediate, replies only to you. **Admin-only** —
+  anyone else who sends `/check` gets a message pointing them at
+  `/subscribe` instead. Not enforced by hiding the command from a menu
+  (that's cosmetic and doesn't stop someone typing it manually) — the
+  webhook checks the sender's chat ID against `TELEGRAM_CHAT_ID` before
+  running anything.
 - **`/subscribe`** to have another Telegram chat also receive the daily
   summary and change alerts; **`/unsubscribe`** to stop.
 - Every scan sends exactly one message: timestamp in IST, checked count,

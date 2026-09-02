@@ -7,11 +7,17 @@
  * message -- any Telegram user who finds the bot can use these commands.
  *
  * Commands:
- *  - /check: runs the same scan the cron job runs, replies only to
- *    whoever sent it. Real page-change notifications from that scan
- *    still broadcast to everyone subscribed (see lib/notify.ts) -- a
- *    change is real information, not something to keep from other
- *    subscribers just because someone else triggered the check.
+ *  - /check: runs the same scan the cron job runs. Admin-only (chatId
+ *    must match TELEGRAM_CHAT_ID) -- the bot is public now, and a scan
+ *    is real work (355 pages fetched from Adobe, a Gemini call per
+ *    change), not something any stranger who finds the bot should be
+ *    able to trigger on demand. Real page-change notifications from an
+ *    admin-run scan still broadcast to everyone subscribed (see
+ *    lib/notify.ts) -- a change is real information, not something to
+ *    keep from other subscribers just because they didn't trigger it.
+ *    Hiding /check from the command menu (BotFather, or a per-chat
+ *    setMyCommands scope) is cosmetic only and NOT a substitute for
+ *    this check -- anyone can still type it manually.
  *  - /subscribe, /unsubscribe: opt in/out of the daily broadcast (scan
  *    summary + change notifications). The bot owner (TELEGRAM_CHAT_ID)
  *    always gets the broadcast regardless of this list.
@@ -40,7 +46,6 @@ import {
 export const maxDuration = 60;
 
 const HELP_TEXT = `Commands:
-/check - run a scan now, replies here with the result
 /subscribe - get the daily scan summary and change alerts
 /unsubscribe - stop getting them
 /lastscan - when the last scan ran and how many pages it checked
@@ -49,6 +54,15 @@ const HELP_TEXT = `Commands:
 /status - overall health: pages tracked, last scan, subscribers
 /sitemap - every tracked page, grouped by section
 /help - this message`;
+
+const ADMIN_HELP_EXTRA = `
+
+Admin-only:
+/check - run a scan now`;
+
+function isOwner(chatId: string): boolean {
+  return chatId === process.env.TELEGRAM_CHAT_ID;
+}
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-telegram-bot-api-secret-token");
@@ -70,7 +84,8 @@ export async function POST(req: NextRequest) {
   const command = text?.trim().toLowerCase();
 
   if (command === "/help" || command === "/start") {
-    await sendToRequester(chatId, HELP_TEXT).catch((e) => console.error("Failed to send /help:", e));
+    const text = HELP_TEXT + (isOwner(chatId) ? ADMIN_HELP_EXTRA : "");
+    await sendToRequester(chatId, text).catch((e) => console.error("Failed to send /help:", e));
     return NextResponse.json({ ok: true });
   }
 
@@ -178,6 +193,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (command === "/check") {
+    if (!isOwner(chatId)) {
+      await sendToRequester(
+        chatId,
+        "/check is admin-only. Updates post automatically once a day — /subscribe to get them."
+      ).catch((e) => console.error("Failed to send /check restriction notice:", e));
+      return NextResponse.json({ ok: true });
+    }
     try {
       await sendToRequester(chatId, "Checking now — this takes a minute, hang on...");
     } catch (notifyErr) {
