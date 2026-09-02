@@ -19,6 +19,22 @@ export function formatIST(isoTimestamp: string): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} IST`;
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Adobe's meta[name="last-update"] tag isn't consistently formatted --
+// sometimes a human-readable "August 31, 2026", sometimes a raw ISO
+// timestamp like "2026-09-02T07:48:33.000Z". Normalize both to one
+// clean human form; anything Date can't parse is shown as-is rather
+// than dropped, since a slightly odd date beats a missing one.
+function formatMetaDate(raw: string): string {
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
 // Shared by formatScanSummary and the /lastModified command -- one
 // title/date/digest/link block per changed page, same truncation rule
 // (first 10 in full, rest as a plain URL list) in both places.
@@ -26,8 +42,8 @@ export function formatChangedDetails(details: ChangeDetail[]): string[] {
   const lines: string[] = [];
   for (const c of details.slice(0, LIST_PREVIEW)) {
     lines.push(c.title);
-    if (c.metaLastUpdate) lines.push(`Last updated: ${c.metaLastUpdate}`);
-    lines.push(c.digest, c.url, "");
+    if (c.metaLastUpdate) lines.push(`Last updated: ${formatMetaDate(c.metaLastUpdate)}`);
+    lines.push("", c.digest, "", c.url, "");
   }
   if (details.length > LIST_PREVIEW) {
     const rest = details.slice(LIST_PREVIEW).map((c) => c.url);

@@ -41,8 +41,10 @@ export async function summarizeChange(diffExcerpt: string): Promise<string> {
         model: GEMINI_MODEL,
         input:
           "Summarize what changed in this documentation page diff in ONE short plain-text " +
-          "sentence, under 20 words, no markdown, no quotes. Lines starting with + were added, " +
-          `lines starting with - were removed:\n\n${diffExcerpt.slice(0, 4000)}`,
+          "sentence, under 20 words, no markdown, no quotes. Focus only on substantive content " +
+          "changes -- ignore any 'Last update'/date line change, that's shown separately already " +
+          "and not worth repeating. Lines starting with + were added, lines starting with - were " +
+          `removed:\n\n${diffExcerpt.slice(0, 4000)}`,
         generation_config: { temperature: 0.2, thinking_level: "low" },
       }),
     });
