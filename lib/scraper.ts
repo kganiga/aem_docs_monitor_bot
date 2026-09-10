@@ -39,26 +39,48 @@ const STRIP_SELECTORS = [
   "[id*='feedback' i]",
 ];
 
-export interface ScrapeResult {
-  text: string;
-  title: string;
-  hash: string;
-  metaLastUpdate: string | null;
-}
+export type ScrapeResult =
+  | { status: "not_modified" }
+  | {
+      status: "ok";
+      text: string;
+      title: string;
+      hash: string;
+      metaLastUpdate: string | null;
+      lastModifiedHeader: string | null;
+    };
 
 function deriveTitleFromUrl(url: string): string {
   const slug = url.replace(/\/+$/, "").split("/").pop() ?? url;
   return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export async function scrapePage(url: string): Promise<ScrapeResult> {
-  const resp = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+export async function scrapePage(
+  url: string,
+  ifModifiedSince?: string | null
+): Promise<ScrapeResult> {
+  const headers: Record<string, string> = { "User-Agent": USER_AGENT };
+  if (ifModifiedSince) {
+    headers["If-Modified-Since"] = ifModifiedSince;
+  }
+
+  const resp = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(10000), // 10s timeout per page fetch to prevent hanging
+  });
+
+  if (resp.status === 304) {
+    return { status: "not_modified" };
+  }
+
   if (!resp.ok) {
     const bodySnippet = (await resp.text().catch(() => "")).slice(0, 300).replace(/\s+/g, " ").trim();
     throw new Error(
       `Fetch failed: ${resp.status} ${resp.statusText} for ${url} | body: ${bodySnippet || "(empty)"}`
     );
   }
+
+  const lastModifiedHeader = resp.headers.get("last-modified");
   const html = await resp.text();
   const $ = cheerio.load(html);
 
@@ -102,5 +124,5 @@ export async function scrapePage(url: string): Promise<ScrapeResult> {
 
   const hash = createHash("sha256").update(text, "utf-8").digest("hex");
 
-  return { text, title, hash, metaLastUpdate };
+  return { status: "ok", text, title, hash, metaLastUpdate, lastModifiedHeader };
 }

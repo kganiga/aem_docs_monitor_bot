@@ -26,6 +26,7 @@ export interface PageState {
   title: string;
   metaLastUpdate: string | null;
   lastCheckedAt: string;
+  lastModifiedHeader?: string | null;
 }
 
 function keyFor(url: string): string {
@@ -37,8 +38,23 @@ export async function getPageState(url: string): Promise<PageState | null> {
   return data ?? null;
 }
 
+export async function getPageStateBatch(urls: string[]): Promise<(PageState | null)[]> {
+  if (urls.length === 0) return [];
+  const keys = urls.map(keyFor);
+  const states = await redis.mget<(PageState | null)[]>(...keys);
+  return states.map((s) => s ?? null);
+}
+
 export async function setPageState(url: string, state: PageState): Promise<void> {
   await redis.set(keyFor(url), state);
+}
+
+export async function updatePageLastModified(url: string, lastModifiedHeader: string): Promise<void> {
+  const current = await getPageState(url);
+  if (current && current.lastModifiedHeader !== lastModifiedHeader) {
+    current.lastModifiedHeader = lastModifiedHeader;
+    await setPageState(url, current);
+  }
 }
 
 export async function deletePageState(url: string): Promise<void> {
@@ -66,20 +82,37 @@ export async function listAllPageInfo(): Promise<{ url: string; title: string }[
 }
 
 const DISCOVERED_URLS_KEY = "discovered-urls-cache";
+const SITEMAP_CACHE_KEY = "sitemap-cache-v2";
 
-// Adobe's sitemap is ~75MB and gets fetched+parsed in full on every run
-// (see lib/discover.ts) -- fine once a day, wasteful if /check gets hit
-// several times in the same day (each call re-downloading the whole
-// thing for a list that hasn't changed). Cached here with a TTL so
-// repeated calls within the window reuse the same result; expires well
-// before the next scheduled cron run so daily discovery still happens.
-export async function getCachedDiscoveredUrls(): Promise<string[] | null> {
-  const data = await redis.get<string[]>(DISCOVERED_URLS_KEY);
-  return data ?? null;
+export interface SitemapCache {
+  urls: string[];
+  lastModified?: string | null;
 }
 
-export async function setCachedDiscoveredUrls(urls: string[], ttlSeconds: number): Promise<void> {
-  await redis.set(DISCOVERED_URLS_KEY, urls, { ex: ttlSeconds });
+// Adobe's sitemap is ~75MB. Instead of blind re-downloading, we cache the
+// parsed URLs along with Adobe's Last-Modified header. On subsequent runs,
+// we send an If-Modified-Since HTTP request to Adobe: if unchanged (304),
+// we reuse the cached URLs with zero download and near-zero latency.
+export async function getCachedSitemap(): Promise<SitemapCache | null> {
+  const data = await redis.get<SitemapCache>(SITEMAP_CACHE_KEY);
+  if (data && Array.isArray(data.urls)) return data;
+  const legacy = await redis.get<string[]>(DISCOVERED_URLS_KEY);
+  if (legacy && Array.isArray(legacy)) return { urls: legacy };
+  return null;
+}
+
+export async function setCachedSitemap(cache: SitemapCache): Promise<void> {
+  await redis.set(SITEMAP_CACHE_KEY, cache);
+}
+
+export async function getCachedDiscoveredUrls(): Promise<string[] | null> {
+  const cache = await getCachedSitemap();
+  return cache ? cache.urls : null;
+}
+
+export async function setCachedDiscoveredUrls(urls: string[], ttlSeconds?: number): Promise<void> {
+  const opts = ttlSeconds ? { ex: ttlSeconds } : undefined;
+  await redis.set(DISCOVERED_URLS_KEY, urls, opts);
 }
 
 const SUBSCRIBERS_KEY = "subscribers";

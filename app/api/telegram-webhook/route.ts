@@ -31,7 +31,7 @@
  *    not chat messages (355 pages would take ~19 of those).
  *  - /help: lists these commands.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { runScan } from "@/lib/scan";
 import { sendToRequester, sendDocumentToRequester, broadcast } from "@/lib/notify";
 import { formatScanSummary, formatChangedDetails, formatFailedList, formatIST } from "@/lib/summary";
@@ -202,27 +202,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
     try {
-      await sendToRequester(chatId, "Checking now — this takes a minute, hang on...");
+      await sendToRequester(chatId, "Checking now — this takes a few seconds, hang on...");
     } catch (notifyErr) {
       console.error("Failed to send 'checking now' Telegram message:", notifyErr);
     }
-    try {
-      const summary = await runScan();
-      // The result is the same "what happened" the daily cron reports --
-      // broadcast it to everyone subscribed, not just whoever ran /check.
-      // Otherwise a real change found via an admin /check would silently
-      // never reach subscribers at all.
-      await broadcast(formatScanSummary(summary));
-    } catch (err) {
-      console.error("Scan or notify failed:", err);
-      // A failed scan is an operational concern for the admin, not
-      // something to alarm every subscriber with -- stays personal.
+
+    // Run the scan in the background via Next.js after(). This immediately returns
+    // HTTP 200 OK to Telegram (<50ms), satisfying Telegram's strict 5-second webhook
+    // timeout and preventing retry loops.
+    after(async () => {
       try {
-        await sendToRequester(chatId, `Scan failed: ${String(err)}`);
-      } catch (notifyErr) {
-        console.error("Failed to send scan-failure Telegram message:", notifyErr);
+        const summary = await runScan();
+        // The result is the same "what happened" the daily cron reports --
+        // broadcast it to everyone subscribed, not just whoever ran /check.
+        await broadcast(formatScanSummary(summary));
+      } catch (err) {
+        console.error("Scan or notify failed:", err);
+        try {
+          await sendToRequester(chatId, `Scan failed: ${String(err)}`);
+        } catch (notifyErr) {
+          console.error("Failed to send scan-failure Telegram message:", notifyErr);
+        }
       }
-    }
+    });
+
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ ok: true });

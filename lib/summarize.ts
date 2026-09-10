@@ -37,6 +37,7 @@ export async function summarizeChange(diffExcerpt: string): Promise<string> {
     const resp = await fetch(GEMINI_URL, {
       method: "POST",
       headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(5000), // 5s timeout to prevent API hangs
       body: JSON.stringify({
         model: GEMINI_MODEL,
         input:
