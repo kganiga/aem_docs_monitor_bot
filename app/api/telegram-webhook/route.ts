@@ -46,7 +46,13 @@ import {
 
 export const maxDuration = 60;
 
-const HELP_TEXT = `Commands:
+function getHelpText(): string {
+  const hasSupport = Boolean(
+    process.env.BUY_ME_A_COFFEE_URL?.trim() || process.env.WHATSAPP_COMMUNITY_URL?.trim()
+  );
+  const supportLine = hasSupport ? "\n/support - buy me a coffee, join the WhatsApp community, or share" : "";
+
+  return `Commands:
 /subscribe - get the daily scan summary and change alerts
 /unsubscribe - stop getting them
 /lastscan - when the last scan ran and how many pages it checked
@@ -54,7 +60,9 @@ const HELP_TEXT = `Commands:
 /failed - pages that failed to fetch in the last scan
 /status - overall health: pages tracked, last scan, subscribers
 /sitemap - every tracked page, grouped by section
+/feedback <message> - send feedback or suggestions to the admin${supportLine}
 /help - this message`;
+}
 
 const ADMIN_HELP_EXTRA = `
 
@@ -79,14 +87,71 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Lowercased so a manually-typed "/Check" or BotFather's own lowercase-
-  // only menu commands (Telegram requires ^[a-z0-9_]{1,32}$ for those)
-  // both match -- none of these commands take arguments, so this is safe.
-  const command = text?.trim().toLowerCase();
+  // Parse command and any following arguments (e.g. /feedback my comments here)
+  const rawText = text?.trim() ?? "";
+  const command = rawText.split(/\s+/)[0]?.toLowerCase();
+  const args = rawText.slice(command.length).trim();
 
   if (command === "/help" || command === "/start") {
-    const text = HELP_TEXT + (isOwner(chatId) ? ADMIN_HELP_EXTRA : "");
+    const text = getHelpText() + (isOwner(chatId) ? ADMIN_HELP_EXTRA : "");
     await sendToRequester(chatId, text).catch((e) => console.error("Failed to send /help:", e));
+    return NextResponse.json({ ok: true });
+  }
+
+  if (command === "/support" || command === "/community" || command === "/coffee") {
+    const coffeeUrl = process.env.BUY_ME_A_COFFEE_URL?.trim();
+    const whatsappUrl = process.env.WHATSAPP_COMMUNITY_URL?.trim();
+
+    if (coffeeUrl || whatsappUrl) {
+      const lines = [
+        "☕ Loving my work? Here is how you can support this project and connect:",
+        "",
+      ];
+      if (coffeeUrl) lines.push(`• Buy me a coffee: ${coffeeUrl}`);
+      if (whatsappUrl) lines.push(`• Join our WhatsApp community: ${whatsappUrl}`);
+      lines.push("• Share this bot with your team or fellow AEM developers!", "");
+      lines.push("Thank you for your support! 🙌");
+      await sendToRequester(chatId, lines.join("\n")).catch((e) => console.error("Failed to send /support:", e));
+    } else {
+      const msg =
+        "☕ Thank you for wanting to support this project!\n\n" +
+        "Community/donation links are not active yet, but you can support the project by sharing this bot with your team or fellow AEM developers! 🙌";
+      await sendToRequester(chatId, msg).catch((e) => console.error("Failed to send /support:", e));
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (command === "/feedback") {
+    if (!args) {
+      await sendToRequester(
+        chatId,
+        "Please include your message after /feedback, e.g.:\n/feedback I noticed an issue or have a suggestion."
+      ).catch((e) => console.error("Failed to send /feedback usage:", e));
+      return NextResponse.json({ ok: true });
+    }
+
+    const adminChatId = process.env.TELEGRAM_CHAT_ID;
+    if (adminChatId) {
+      const from = update?.message?.from;
+      const senderParts = [
+        from?.first_name,
+        from?.last_name,
+        from?.username ? `(@${from.username})` : "",
+        `[Chat ID: ${chatId}]`,
+      ].filter(Boolean);
+      const senderDesc = senderParts.length > 0 ? senderParts.join(" ") : `User ${chatId}`;
+
+      const feedbackMsg = `💬 New Feedback from ${senderDesc}:\n\n${args}`;
+      await sendToRequester(adminChatId, feedbackMsg).catch((e) =>
+        console.error("Failed to forward feedback to admin:", e)
+      );
+    }
+
+    await sendToRequester(
+      chatId,
+      "✅ Thank you! Your feedback has been forwarded to the bot administrator."
+    ).catch((e) => console.error("Failed to send feedback confirmation:", e));
+
     return NextResponse.json({ ok: true });
   }
 

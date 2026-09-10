@@ -70,6 +70,8 @@ UPSTASH_REDIS_REST_TOKEN=...
 CRON_SECRET=<any random string you generate yourself>
 TELEGRAM_WEBHOOK_SECRET=<another random string you generate yourself>
 GEMINI_API_KEY=<optional -- see below>
+BUY_ME_A_COFFEE_URL=<optional -- e.g. https://buymeacoffee.com/yourname>
+WHATSAPP_COMMUNITY_URL=<optional -- e.g. https://chat.whatsapp.com/yourgroup>
 ```
 
 `CRON_SECRET` and `TELEGRAM_WEBHOOK_SECRET` aren't from anywhere else —
@@ -136,6 +138,8 @@ nothing yet to diff against).
 - **`/sitemap`** — every tracked page, grouped by section, titles as
   clickable links, sent as a single downloadable HTML file rather than
   ~19 chat messages (355 pages don't fit in one Telegram message).
+- **`/feedback <message>`** — send feedback, ideas, or report broken links directly to the bot admin.
+- **`/support`** — buy me a coffee, join our WhatsApp community, or share the bot.
 - **`/help`** lists all commands.
 
 ## Before you trust this for real

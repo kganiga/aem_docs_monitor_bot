@@ -91,6 +91,17 @@ export function formatScanSummary(summary: ScanSummary): string {
     lines.push("Failed:", formatList(summary.failed.map((f) => `${f.url}: ${f.error}`)), "");
   }
 
+  lines.push("💡 Have feedback or questions? Send /feedback <your comments>");
+
+  const coffeeUrl = process.env.BUY_ME_A_COFFEE_URL?.trim();
+  const whatsappUrl = process.env.WHATSAPP_COMMUNITY_URL?.trim();
+  if (coffeeUrl || whatsappUrl) {
+    lines.push("", "☕ Loving my work?");
+    if (coffeeUrl) lines.push(`• Buy me a coffee: ${coffeeUrl}`);
+    if (whatsappUrl) lines.push(`• WhatsApp community: ${whatsappUrl}`);
+    lines.push("• Or share this bot with your peers!");
+  }
+
   const text = lines.join("\n").trimEnd();
   return text.length > MAX_MESSAGE_LEN ? text.slice(0, MAX_MESSAGE_LEN) + "\n...(truncated)" : text;
 }
