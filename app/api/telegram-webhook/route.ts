@@ -34,7 +34,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { runScan } from "@/lib/scan";
 import { sendToRequester, sendDocumentToRequester, broadcast } from "@/lib/notify";
-import { formatScanSummary, formatChangedDetails, formatFailedList, formatIST } from "@/lib/summary";
+import { formatScanSummary, formatChangedDetails, formatFailedList, formatIST, formatSupportMessage } from "@/lib/summary";
 import { formatSitemapHtml } from "@/lib/sitemap";
 import {
   addSubscriber,
@@ -99,19 +99,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (command === "/support" || command === "/community" || command === "/coffee") {
-    const coffeeUrl = process.env.BUY_ME_A_COFFEE_URL?.trim();
-    const whatsappUrl = process.env.WHATSAPP_COMMUNITY_URL?.trim();
-
-    if (coffeeUrl || whatsappUrl) {
-      const lines = [
-        "☕ Loving my work? Here is how you can support this project and connect:",
-        "",
-      ];
-      if (coffeeUrl) lines.push(`• Buy me a coffee: ${coffeeUrl}`);
-      if (whatsappUrl) lines.push(`• Join our WhatsApp community: ${whatsappUrl}`);
-      lines.push("• Share this bot with your team or fellow AEM developers!", "");
-      lines.push("Thank you for your support! 🙌");
-      await sendToRequester(chatId, lines.join("\n")).catch((e) => console.error("Failed to send /support:", e));
+    const supportMsg = formatSupportMessage();
+    if (supportMsg) {
+      await sendToRequester(chatId, supportMsg).catch((e) => console.error("Failed to send /support:", e));
     } else {
       const msg =
         "☕ Thank you for wanting to support this project!\n\n" +
@@ -281,6 +271,10 @@ export async function POST(req: NextRequest) {
         // The result is the same "what happened" the daily cron reports --
         // broadcast it to everyone subscribed, not just whoever ran /check.
         await broadcast(formatScanSummary(summary));
+        const supportMsg = formatSupportMessage();
+        if (supportMsg) {
+          await broadcast(supportMsg);
+        }
       } catch (err) {
         console.error("Scan or notify failed:", err);
         try {

@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runScan } from "@/lib/scan";
 import { broadcast } from "@/lib/notify";
-import { formatScanSummary } from "@/lib/summary";
+import { formatScanSummary, formatSupportMessage } from "@/lib/summary";
 
 export const maxDuration = 60;
 
@@ -25,6 +25,10 @@ export async function GET(req: NextRequest) {
 
     try {
       await broadcast(formatScanSummary(summary));
+      const supportMsg = formatSupportMessage();
+      if (supportMsg) {
+        await broadcast(supportMsg);
+      }
     } catch (notifyErr) {
       console.error("Failed to broadcast scan summary:", notifyErr);
     }
